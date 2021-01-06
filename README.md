@@ -5,7 +5,7 @@
 1. Install Docker for your OS. Follow instructions [here](https://docs.docker.com/get-docker/)
 2. Install Minikube for your OS. Follow instructions [here](https://minikube.sigs.k8s.io/docs/start/)
 3. Install Helm for your OS through package manager. Follow instructions [here](https://helm.sh/docs/intro/install/)
-4. Start Minikube `minikube start --kubernetes-version=v1.17.16 --memory 6144 --cpus 4 --vm-driver=<choose appropriate>`
+4. Start Minikube `minikube start --kubernetes-version=v1.17.16 --memory 4096 --cpus 4 --vm-driver=<choose appropriate>`
    , where [choose appropriate](https://minikube.sigs.k8s.io/docs/drivers/)
 5. Install Greenplum. Follow instructions [here](http://greenplum-kubernetes.docs.pivotal.io/2-3/installing.html), don't
    skip 4., skip step 8., 9., 10. or below:
@@ -25,8 +25,8 @@
     3. `kubectl apply -f ./my-gp-instance.yaml`
 
 7. Install RabbitMQ
-   Operator `kubectl apply -f "https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml"`
-8. Go to the folder of the project and run: `kubectl apply -f rabbitmq.yaml`
+   1. `helm repo add bitnami https://charts.bitnami.com/bitnami`
+   2. `helm install rabbitmq bitnami/rabbitmq --set=auth.username=admin --set=auth.password=admin`
 
 ## Additional notes
 
@@ -35,12 +35,6 @@
 - For making Greenplum accessible:
   (preferred) Use: https://github.com/txn2/kubefwd `sudo kubefwd services` -> postgresql://greenplum:5432/gpadmin type
   command: `kubectl port-forward service/greenplum 5432:5432` -> postgresql://localhost:5432/gpadmin
-- To find out username and password to RabbitMQ execute:
-  `echo Username: $(kubectl get secret rabbitmq-default-user -o jsonpath="{.data.username}" | base64 --decode)`
-  `echo Password: $(kubectl get secret rabbitmq-default-user -o jsonpath="{.data.password}" | base64 --decode)`
-  On Windows alternatively in Powershell:
-  `echo "Username: $([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($(kubectl get secret rabbitmq-default-user -o jsonpath="{.data.username}"))))"`
-  `echo "Password: $([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($(kubectl get secret rabbitmq-default-user -o jsonpath="{.data.password}"))))"`
   
 ## Application logic
 There should be 3 modules of the app.

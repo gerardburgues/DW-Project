@@ -1,0 +1,14 @@
+debug: false
+
+logging:
+  level:
+    pl.pwr.nbaproject: debug
+
+spring:
+  rabbitmq:
+    host: rabbitmq
+    username: admin
+    password: admin
+    port: 5672
+  r2dbc:
+    url: r2dbc:postgres://gpadmin@greenplum:5432

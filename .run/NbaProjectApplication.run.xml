@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="NbaProjectApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="DW-Project.main" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="pl.pwr.nbaproject.NbaProjectApplication" />
+    <option name="ALTERNATIVE_JRE_PATH" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

@@ -1,0 +1,5 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Port forwarding" type="PowerShellRunType" factoryName="PowerShell" scriptUrl="C:\Users\Michal\IdeaProjects\nba-project\portforwad.ps1" workingDirectory="C:\Users\Michal">
+    <method v="2" />
+  </configuration>
+</component>
