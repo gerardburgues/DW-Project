@@ -5,7 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.reactive.asFlow
 import org.apache.logging.log4j.kotlin.Logging
 import org.springframework.beans.factory.InitializingBean
@@ -37,7 +40,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * Base method used for performing ETL process. Should be called by subclasses in bean initialization method.
      * This method rather should not be used directly.
      *
-     * @param Queues queue name for message polling
+     * @param queue queue name for message polling
      * @param extract function for data transformation from the extraction step to the form acceptable for the data warehouse
      * @param transform function for data transformation from the extraction step to the form acceptable for the data warehouse
      * @param load function for inserting the data into the data warehouse

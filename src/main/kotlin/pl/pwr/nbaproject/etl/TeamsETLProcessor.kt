@@ -7,7 +7,7 @@ import kotlinx.coroutines.reactive.awaitSingle
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.TeamsClient
-import pl.pwr.nbaproject.model.Queue
+import pl.pwr.nbaproject.model.Queue.TEAMS
 import pl.pwr.nbaproject.model.amqp.YearMessage
 import pl.pwr.nbaproject.model.api.Teams
 import pl.pwr.nbaproject.model.db.TeamEntity
@@ -21,12 +21,12 @@ class TeamsETLProcessor(
     private val databaseClient: DatabaseClient,
 ) : AbstractETLProcessor<YearMessage, Teams, List<TeamEntity>>(rabbitReceiver, objectMapper) {
 
-    override val queue: Queue = Queue.TEAMS
+    override val queue = TEAMS
 
     override val messageClass: Class<YearMessage> = YearMessage::class.java
 
     override suspend fun extract(apiParams: YearMessage): Teams {
-        return teamsClient.getTeams(apiParams)
+        return teamsClient.getTeams(apiParams.year)
     }
 
     override suspend fun transform(data: Teams): List<TeamEntity> {
@@ -39,7 +39,7 @@ class TeamsETLProcessor(
         val connection = databaseClient.connectionFactory.create().awaitSingle()
         val batch = connection.createBatch()
         data.forEach {
-            batch.add("INSERT INTO teams (team_id) VALUES (${it.teamId}) ON CONFLICT DO NOTHING")
+            batch.add("INSERT INTO teams (team_id) VALUES (${it.teamId}) ")
         }
         batch.execute().asFlow().collect()
     }
