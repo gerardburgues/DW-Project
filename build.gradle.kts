@@ -5,6 +5,7 @@ plugins {
     id("io.spring.dependency-management") version "1.0.10.RELEASE"
     kotlin("jvm") version "1.4.21"
     kotlin("plugin.spring") version "1.4.21"
+    id("org.liquibase.gradle") version "2.0.3"
 }
 
 group = "pl.pwr"
@@ -15,6 +16,25 @@ configurations {
     compileOnly {
         extendsFrom(configurations.annotationProcessor.get())
     }
+}
+
+liquibase {
+    val dbUsername: String by project
+    val dbHost: String by project
+    val dbPort: String by project
+    val dbName: String by project
+
+    activities {
+        register("main") {
+            arguments = mapOf(
+                "url" to "jdbc:postgresql://$dbHost:$dbPort/$dbName",
+                "username" to dbUsername,
+                "changeLogFile" to "src/main/resources/db/changelog/db.changelog-master.xml"
+            )
+        }
+    }
+
+    runList = "main"
 }
 
 repositories {
@@ -35,7 +55,12 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
     implementation("io.projectreactor.rabbitmq:reactor-rabbitmq")
     runtimeOnly("io.r2dbc:r2dbc-postgresql")
-    runtimeOnly("org.postgresql:postgresql")
+    liquibaseRuntime("org.postgresql:postgresql")
+    liquibaseRuntime("org.liquibase:liquibase-core:3.8.1")
+    liquibaseRuntime("org.liquibase:liquibase-groovy-dsl:2.1.1")
+    liquibaseRuntime("ch.qos.logback:logback-core")
+    liquibaseRuntime("ch.qos.logback:logback-classic")
+    liquibaseRuntime("javax.xml.bind:jaxb-api")
 
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
@@ -51,7 +76,7 @@ dependencies {
 
 configurations {
     all {
-        exclude(group= "org.springframework.boot", module = "spring-boot-starter-logging")
+        exclude(group = "org.springframework.boot", module = "spring-boot-starter-logging")
     }
 }
 
@@ -65,4 +90,8 @@ tasks.withType<KotlinCompile> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.withType<ProcessResources> {
+    expand(project.properties)
 }

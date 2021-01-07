@@ -11,4 +11,5 @@ spring:
     password: admin
     port: 5672
   r2dbc:
-    url: r2dbc:postgres://gpadmin@greenplum:5432
+    url: "r2dbc:postgres://${dbHost}:${dbPort}/${dbName}"
+    username: "${dbUsername}"

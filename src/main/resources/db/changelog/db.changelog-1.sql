@@ -1,0 +1,4 @@
+CREATE TABLE teams
+(
+    team_id BIGSERIAL PRIMARY KEY UNIQUE
+);
