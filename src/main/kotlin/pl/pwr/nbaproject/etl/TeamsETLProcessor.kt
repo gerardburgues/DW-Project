@@ -30,9 +30,24 @@ class TeamsETLProcessor(
     }
 
     override suspend fun transform(data: Teams): List<TeamEntity> {
-        return data.league["standard"]?.map {
-            TeamEntity(teamId = it.teamId)
-        } ?: emptyList()
+        /*val teams = data.league["standard"]
+        val teamEntities = mutableListOf<TeamEntity>()
+        if (teams != null) {
+            for (team in teams) {
+                if (team.isNBAFranchise == true) {
+                    teamEntities += TeamEntity(team.teamId)
+                }
+            }
+        }
+
+        return teamEntities*/
+
+        return data.league["standard"]
+            ?.asSequence() // Equivalent to Stream<T> in Java, it's evaluated lazily, not eagerly
+            ?.filter { team -> team.isNBAFranchise == true }
+            ?.map { TeamEntity(teamId = it.teamId) }
+            ?.toList() // Terminal operator
+            ?: emptyList()
     }
 
     override suspend fun load(data: List<TeamEntity>) {
