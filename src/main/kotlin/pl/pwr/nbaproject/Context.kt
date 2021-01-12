@@ -19,7 +19,7 @@ class Context(
 
     @Bean
     fun ballDontLieWebClient(): WebClient = WebClient.builder()
-        .baseUrl("https://balldontlie.io/api/v1")
+        .baseUrl("https://www.balldontlie.io/api/v1")
         .build()
 
     @Bean

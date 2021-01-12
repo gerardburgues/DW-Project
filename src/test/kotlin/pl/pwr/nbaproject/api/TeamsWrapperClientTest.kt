@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 
 @SpringBootTest
-internal class TeamsClientTest {
+internal class TeamsWrapperClientTest {
 
     @Autowired
     private lateinit var teamsClient: TeamsClient
@@ -15,8 +15,8 @@ internal class TeamsClientTest {
     @Test
     fun getTeams() {
         runBlocking {
-            val teams = teamsClient.getTeams(2019)
-            assertEquals(teams.league["standard"]?.size ?: 0, 44)
+            val teams = teamsClient.getTeams()
+            assertEquals(teams.data.size, 30)
         }
     }
 

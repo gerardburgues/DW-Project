@@ -1,62 +1,47 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.reactive.asFlow
-import kotlinx.coroutines.reactive.awaitSingle
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.TeamsClient
 import pl.pwr.nbaproject.model.Queue.TEAMS
-import pl.pwr.nbaproject.model.amqp.YearMessage
-import pl.pwr.nbaproject.model.api.Teams
-import pl.pwr.nbaproject.model.db.TeamEntity
+import pl.pwr.nbaproject.model.amqp.PageMessage
+import pl.pwr.nbaproject.model.api.TeamsWrapper
+import pl.pwr.nbaproject.model.db.Conference
+import pl.pwr.nbaproject.model.db.Division
+import pl.pwr.nbaproject.model.db.Team
 import reactor.rabbitmq.Receiver
 
 @Service
 class TeamsETLProcessor(
     rabbitReceiver: Receiver,
     objectMapper: ObjectMapper,
+    databaseClient: DatabaseClient,
     private val teamsClient: TeamsClient,
-    private val databaseClient: DatabaseClient,
-) : AbstractETLProcessor<YearMessage, Teams, List<TeamEntity>>(rabbitReceiver, objectMapper) {
+) : AbstractETLProcessor<PageMessage, TeamsWrapper, List<Team>>(rabbitReceiver, objectMapper, databaseClient) {
 
     override val queue = TEAMS
 
-    override val messageClass: Class<YearMessage> = YearMessage::class.java
+    override val messageClass: Class<PageMessage> = PageMessage::class.java
 
-    override suspend fun extract(apiParams: YearMessage): Teams {
-        return teamsClient.getTeams(apiParams.year)
+    override suspend fun extract(apiParams: PageMessage): TeamsWrapper {
+        return teamsClient.getTeams(apiParams.page)
     }
 
-    override suspend fun transform(data: Teams): List<TeamEntity> {
-        /*val teams = data.league["standard"]
-        val teamEntities = mutableListOf<TeamEntity>()
-        if (teams != null) {
-            for (team in teams) {
-                if (team.isNBAFranchise == true) {
-                    teamEntities += TeamEntity(team.teamId)
-                }
-            }
+    override suspend fun transform(data: TeamsWrapper): List<Team> = data.data.map { team ->
+        with(team) {
+            Team(id, abbreviation, city, Conference.valueOf(conference), Division.valueOf(division), fullName, name)
         }
-
-        return teamEntities*/
-
-        return data.league["standard"]
-            ?.asSequence() // Equivalent to Stream<T> in Java, it's evaluated lazily, not eagerly
-            ?.filter { team -> team.isNBAFranchise == true }
-            ?.map { TeamEntity(teamId = it.teamId) }
-            ?.toList() // Terminal operator
-            ?: emptyList()
     }
 
-    override suspend fun load(data: List<TeamEntity>) {
-        val connection = databaseClient.connectionFactory.create().awaitSingle()
-        val batch = connection.createBatch()
-        data.forEach {
-            batch.add("INSERT INTO teams (team_id) VALUES (${it.teamId}) ")
+    override suspend fun load(data: List<Team>): List<String> = data.map { team ->
+        with(team) {
+            //language=Greenplum
+            """
+            |INSERT INTO teams (id, abbreviation, city, conference, division, full_name, "name")
+            |VALUES ($id, $abbreviation, $city, ${conference.name}, ${division.name}, $fullName, $name)
+            |""".trimMargin()
         }
-        batch.execute().asFlow().collect()
     }
 
 }
