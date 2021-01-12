@@ -11,6 +11,7 @@ import pl.pwr.nbaproject.model.db.Conference
 import pl.pwr.nbaproject.model.db.Division
 import pl.pwr.nbaproject.model.db.Team
 import reactor.rabbitmq.Receiver
+import kotlin.reflect.KClass
 
 @Service
 class TeamsETLProcessor(
@@ -22,10 +23,10 @@ class TeamsETLProcessor(
 
     override val queue = TEAMS
 
-    override val messageClass: Class<PageMessage> = PageMessage::class.java
+    override val messageClass: KClass<PageMessage> = PageMessage::class
 
-    override suspend fun extract(apiParams: PageMessage): TeamsWrapper {
-        return teamsClient.getTeams(apiParams.page)
+    override suspend fun extract(apiParams: PageMessage): TeamsWrapper = with(apiParams) {
+        teamsClient.getTeams(page, perPage)
     }
 
     override suspend fun transform(data: TeamsWrapper): List<Team> = data.data.map { team ->

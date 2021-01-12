@@ -10,7 +10,7 @@ class PlayersClient(
     private val ballDontLieWebClient: WebClient
 ) {
 
-    suspend fun getPlayers(page: Long, perPage: Long = 100): PlayersWrapper = ballDontLieWebClient.get()
+    suspend fun getPlayers(page: Int = 0, perPage: Int = 100): PlayersWrapper = ballDontLieWebClient.get()
         .uri { uriBuilder ->
             uriBuilder.path("/players")
                 .queryParam("page", page)

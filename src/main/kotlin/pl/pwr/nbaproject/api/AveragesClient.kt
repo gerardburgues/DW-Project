@@ -10,7 +10,7 @@ class AveragesClient(
     private val ballDontLieWebClient: WebClient
 ) {
 
-    suspend fun getAverages(season: Int, playerIds: List<Long>): AveragesWrapper = ballDontLieWebClient.get()
+    suspend fun getAverages(playerIds: List<Long>, season: Int? = null): AveragesWrapper = ballDontLieWebClient.get()
         .uri { uriBuilder ->
             uriBuilder.path("/season_averages")
                 .queryParam("season", season)

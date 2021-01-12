@@ -5,10 +5,11 @@ import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.StatsClient
 import pl.pwr.nbaproject.model.Queue
-import pl.pwr.nbaproject.model.amqp.PageMessage
+import pl.pwr.nbaproject.model.amqp.StatsMessage
 import pl.pwr.nbaproject.model.api.StatsWrapper
 import pl.pwr.nbaproject.model.db.Stats
 import reactor.rabbitmq.Receiver
+import kotlin.reflect.KClass
 
 @Service
 class StatsETLProcessor(
@@ -16,14 +17,14 @@ class StatsETLProcessor(
     objectMapper: ObjectMapper,
     databaseClient: DatabaseClient,
     private val statsClient: StatsClient,
-) : AbstractETLProcessor<PageMessage, StatsWrapper, List<Stats>>(rabbitReceiver, objectMapper, databaseClient) {
+) : AbstractETLProcessor<StatsMessage, StatsWrapper, List<Stats>>(rabbitReceiver, objectMapper, databaseClient) {
 
     override val queue: Queue = Queue.PLAYERS
 
-    override val messageClass: Class<PageMessage> = PageMessage::class.java
+    override val messageClass: KClass<StatsMessage> = StatsMessage::class
 
-    override suspend fun extract(apiParams: PageMessage): StatsWrapper {
-        return statsClient.getStats(apiParams.page)
+    override suspend fun extract(apiParams: StatsMessage): StatsWrapper = with(apiParams) {
+        statsClient.getStats(seasons, teamIds, gameIds, postSeason, page, page)
     }
 
     override suspend fun transform(data: StatsWrapper): List<Stats> = data.data.map { stats ->

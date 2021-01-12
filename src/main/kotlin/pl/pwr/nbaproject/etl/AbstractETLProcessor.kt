@@ -16,6 +16,7 @@ import org.springframework.r2dbc.core.DatabaseClient
 import pl.pwr.nbaproject.model.Queue
 import reactor.rabbitmq.AcknowledgableDelivery
 import reactor.rabbitmq.Receiver
+import kotlin.reflect.KClass
 
 abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     private val rabbitReceiver: Receiver,
@@ -71,7 +72,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
                 "Message: ${delivery.body.decodeToString()}"
             }
 
-            val obj = objectMapper.readValue(delivery.body, messageClass)
+            val obj = objectMapper.readValue(delivery.body, messageClass.java)
             delivery.ack()
             obj
         } catch (e: JsonProcessingException) {
@@ -95,7 +96,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     /**
      * Workaround for lack of support for dynamical type resolution on JVM
      */
-    abstract val messageClass: Class<T1>
+    abstract val messageClass: KClass<T1>
 
     /**
      * Method for data fetching from API.

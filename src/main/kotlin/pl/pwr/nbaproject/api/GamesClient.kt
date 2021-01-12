@@ -11,20 +11,20 @@ class GamesClient(
 ) {
 
     suspend fun getGames(
-        seasons: List<Int>?,
-        teamIds: List<Int>?,
+        seasons: List<Int> = emptyList(),
+        teamIds: List<Int> = emptyList(),
         postSeason: Boolean? = null,
-        page: Long,
-        perPage: Long = 100
+        page: Int = 0,
+        perPage: Int = 100
     ): GamesWrapper = ballDontLieWebClient.get()
         .uri { uriBuilder ->
             uriBuilder.path("/games")
 
-            seasons?.forEach { season ->
+            seasons.forEach { season ->
                 uriBuilder.queryParam("seasons[]", season)
             }
 
-            teamIds?.forEach { teamId ->
+            teamIds.forEach { teamId ->
                 uriBuilder.queryParam("team_ids[]", teamId)
             }
 

@@ -10,7 +10,7 @@ class TeamsClient(
     private val ballDontLieWebClient: WebClient
 ) {
 
-    suspend fun getTeams(page: Long? = null, perPage: Long = 30): TeamsWrapper = ballDontLieWebClient.get()
+    suspend fun getTeams(page: Int = 0, perPage: Int = 30): TeamsWrapper = ballDontLieWebClient.get()
         .uri { uriBuilder ->
             uriBuilder.path("/teams")
                 .queryParam("page", page)
