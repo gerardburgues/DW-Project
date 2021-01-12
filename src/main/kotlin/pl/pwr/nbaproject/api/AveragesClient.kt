@@ -19,6 +19,10 @@ class AveragesClient(
                 uriBuilder.queryParam("player_ids[]", playerId)
             }
 
+            if (season != null) {
+                uriBuilder.queryParam("season", season)
+            }
+
             uriBuilder.build()
         }
         .retrieve()
