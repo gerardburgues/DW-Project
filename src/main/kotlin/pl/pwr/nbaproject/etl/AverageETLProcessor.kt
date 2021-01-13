@@ -43,7 +43,6 @@ class AverageETLProcessor(
                 threePointersAttempted, threePointersMade, threePointerPercentage,
                 freeThrowsAttempted, freeThrowsMade, freeThrowPercentage
             )
-
         }
     }
 
@@ -51,55 +50,55 @@ class AverageETLProcessor(
         with(Average) {
             //language=Greenplum
             """
-            |INSERT INTO averages 
-            |(player_id,
-            | season, 
-            | games_played, 
-            | "minutes", 
-            | points, 
-            | assists, 
-            | rebounds, 
-            | defensive_rebounds,
-            | offensive_rebounds, 
-            | blocks, 
-            | steals, 
-            | turnovers, 
-            | personal_fouls, 
-            | field_goals_attempted,
-            | field_goals_made, 
-            | field_goal_percentage, 
-            | three_pointers_attempted, 
-            | three_pointers_made,
-            | three_pointer_percentage,
-            | free_throws_attempted,
-            | free_throws_made,
-            | free_throw_percentage
-            |       ) 
+            |INSERT INTO averages(
+            |    player_id,
+            |    season,
+            |    games_played,
+            |    "minutes",
+            |    points,
+            |    assists,
+            |    rebounds,
+            |    defensive_rebounds
+            |    offensive_rebounds,
+            |    blocks,
+            |    steals,
+            |    turnovers,
+            |    personal_fouls,
+            |    field_goals_attempted,
+            |    field_goals_made,
+            |    field_goal_percentage,
+            |    three_pointers_attempted,
+            |    three_pointers_made,
+            |    three_pointer_percentage,
+            |    free_throws_attempted,
+            |    free_throws_made,
+            |    free_throw_percentage
+            |) 
             |VALUES 
             |(
-            |$playerId,
-            |$season,
-            |$gamesPlayed,
-            |$minutes,
-            |$points,
-            |$assists,
-            |$rebounds,
-            |$defensiveRebounds,
-            |$offensiveRebounds,
-            |$blocks,
-            |$steals,
-            |$turnovers,
-            |$personalFouls,
-            |$fieldGoalsAttempted,
-            |$fieldGoalsMade,
-            |$fieldGoalPercentage,
-            |$threePointersAttempted,
-            |$threePointersMade,
-            |$threePointerPercentage,
-            |$freeThrowsAttempted,
-            |$freeThrowsAttempted,
-            |$fieldGoalPercentage)
-            |""".trimMargin()
+            |    $playerId,
+            |    $season,
+            |    $gamesPlayed,
+            |    $minutes,
+            |    $points,
+            |    $assists,
+            |    $rebounds,
+            |    $defensiveRebounds,
+            |    $offensiveRebounds,
+            |    $blocks,
+            |    $steals,
+            |    $turnovers,
+            |    $personalFouls,
+            |    $fieldGoalsAttempted,
+            |    $fieldGoalsMade,
+            |    $fieldGoalPercentage,
+            |    $threePointersAttempted,
+            |    $threePointersMade,
+            |    $threePointerPercentage,
+            |    $freeThrowsAttempted,
+            |    $freeThrowsAttempted,
+            |    $fieldGoalPercentage
+            |)""".trimMargin()
         }
     }
 

@@ -71,8 +71,6 @@ class GameETLProcessor(
             |    $homeTeamId,
             |    $visitorTeamId
             |)""".trimMargin()
-
-
         }
     }
 

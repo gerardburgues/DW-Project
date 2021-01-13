@@ -1,4 +1,5 @@
 package pl.pwr.nbaproject.model.db
+
 import org.springframework.data.relational.core.mapping.Table
 
 @Table("averages")
