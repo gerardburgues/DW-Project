@@ -1,5 +1,8 @@
 package pl.pwr.nbaproject.model.db
 
+import org.springframework.data.relational.core.mapping.Table
+
+@Table("averages")
 data class Average(
     var playerId: Long,
     var season: Int,
