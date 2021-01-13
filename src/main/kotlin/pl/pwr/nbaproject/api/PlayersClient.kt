@@ -3,14 +3,20 @@ package pl.pwr.nbaproject.api
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.awaitBody
+import pl.pwr.nbaproject.model.api.PlayersWrapper
 
 @Service
 class PlayersClient(
-    private val dataWebClient: WebClient
+    private val ballDontLieWebClient: WebClient
 ) {
 
-    suspend fun getPlayers(year: Long): Map<String, Any?> = dataWebClient.get()
-        .uri("/prod/v1/$year/players.json")
+    suspend fun getPlayers(page: Int = 0, perPage: Int = 100): PlayersWrapper = ballDontLieWebClient.get()
+        .uri { uriBuilder ->
+            uriBuilder.path("/players")
+                .queryParam("page", page)
+                .queryParam("per_page", perPage)
+                .build()
+        }
         .retrieve()
         .awaitBody()
 

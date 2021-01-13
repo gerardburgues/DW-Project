@@ -2,23 +2,26 @@ package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.r2dbc.spi.Result
 import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.reactive.asFlow
+import kotlinx.coroutines.reactive.awaitSingle
 import org.apache.logging.log4j.kotlin.Logging
 import org.springframework.beans.factory.InitializingBean
+import org.springframework.r2dbc.core.DatabaseClient
 import pl.pwr.nbaproject.model.Queue
 import reactor.rabbitmq.AcknowledgableDelivery
 import reactor.rabbitmq.Receiver
+import kotlin.reflect.KClass
 
 abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     private val rabbitReceiver: Receiver,
     private val objectMapper: ObjectMapper,
+    private val databaseClient: DatabaseClient,
 ) : Logging, InitializingBean {
 
     /**
@@ -45,11 +48,12 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * @param transform function for data transformation from the extraction step to the form acceptable for the data warehouse
      * @param load function for inserting the data into the data warehouse
      */
+    @OptIn(FlowPreview::class)
     private fun init(
         queue: Queue,
         extract: suspend (T1) -> T2,
         transform: suspend (T2) -> T3,
-        load: suspend (T3) -> Unit,
+        load: suspend (T3) -> List<String>,
     ) {
         rabbitReceiver.consumeManualAck(queue.queueName).asFlow()
             .mapNotNull(::toMessage)
@@ -58,8 +62,9 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
             .map(transform)
             .flowOn(Default)
             .map(load)
+            .flatMapMerge(DEFAULT_CONCURRENCY, ::executeQueries)
             .launchIn(GlobalScope)
-        }
+    }
 
     private fun toMessage(delivery: AcknowledgableDelivery): T1? {
         return try {
@@ -67,7 +72,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
                 "Message: ${delivery.body.decodeToString()}"
             }
 
-            val obj = objectMapper.readValue(delivery.body, messageClass)
+            val obj = objectMapper.readValue(delivery.body, messageClass.java)
             delivery.ack()
             obj
         } catch (e: JsonProcessingException) {
@@ -75,6 +80,12 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
             delivery.nack(false)
             null
         }
+    }
+
+    private suspend fun executeQueries(queries: List<String>): Flow<Result> {
+        val batch = databaseClient.connectionFactory.create().awaitSingle().createBatch()
+        queries.forEach { query -> batch.add(query) }
+        return batch.execute().asFlow()
     }
 
     /**
@@ -85,7 +96,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     /**
      * Workaround for lack of support for dynamical type resolution on JVM
      */
-    abstract val messageClass: Class<T1>
+    abstract val messageClass: KClass<T1>
 
     /**
      * Method for data fetching from API.
@@ -110,7 +121,8 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * **Important** Make sure this method **does not** perform any heavy calculations.
      *
      * @param data[T3] transformed data from the [AbstractETLProcessor.transform] step
+     * @return list of SQL queries
      */
-    abstract suspend fun load(data: T3)
+    abstract suspend fun load(data: T3): List<String>
 
 }

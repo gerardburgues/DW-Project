@@ -1,16 +1,13 @@
 package pl.pwr.nbaproject.model.api
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class Team(
-    val altCityName: String?,
-    val city: String?,
-    val confName: String?,
-    val divName: String?,
-    val fullName: String?,
-    val isAllStar: Boolean?,
-    val isNBAFranchise: Boolean?,
-    val nickname: String?,
-    val teamId: Long,
-    val teamShortName: String?,
-    val tricode: String?,
-    val urlName: String?
+    @JsonProperty(ID) val id: Long,
+    @JsonProperty(ABBREVIATION) val abbreviation: String,
+    @JsonProperty(CITY) val city: String,
+    @JsonProperty(CONFERENCE) val conference: String,
+    @JsonProperty(DIVISION) val division: String,
+    @JsonProperty(FULL_NAME) val fullName: String,
+    @JsonProperty(NAME) val name: String,
 )
