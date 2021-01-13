@@ -1,6 +1,6 @@
 package pl.pwr.nbaproject.model.amqp
 
 data class SeasonAverageMessage(
-    val playerIds: List<Int>,
+    val playerIds: List<Long>,
     val season: Int? = null,
 )
