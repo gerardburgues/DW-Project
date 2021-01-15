@@ -13,3 +13,22 @@ BEGIN
     RETURN v_avg_three_pm;
 END;
 $$ LANGUAGE plpgsql;
+-------
+create or replace function
+    sum_of_gained_points(team_id bigint, season integer)
+    returns integer as $$
+declare
+    sum_of_points integer;
+begin
+    select
+        sum(stats.points),
+        t.name,
+        g.season
+    into sum_of_points
+    from stats join teams t on t.id = stats.team_id
+    join games g on stats.game_id = g.id
+order by g.date_of_match desc limit 12;
+    return sum_of_points;
+    end;
+$$ language plpgsql;
+-------
