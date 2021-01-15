@@ -32,3 +32,11 @@ order by g.date_of_match desc limit 12;
     end;
 $$ language plpgsql;
 -------
+--! For all the player in the league. I wanna show the player with most average points for each position. V
+-- Top 10 cities with the highest points (use sort) V
+-- Players who play more than 20 ‘(Average) for  cetnter position, sorted(percentage of freethrow)G
+-- Correlation between height of player and how many 3-pointers he made V
+-- Sorting by division show player name  with more than 15 points and 7 assist G
+-- Find a games in which the number of turnovers of the winner team is more than the turnovers of  looser team.  V
+-- Show the games and players in which players has at least 10 assists, 10 points and has won a match (player were in winning team)G
+-- Compare how many minutes and threepointers attempted per game have done the top 10 players with more than 38% three pointer. G
