@@ -29,7 +29,7 @@ liquibase {
             arguments = mapOf(
                 "url" to "jdbc:postgresql://$dbHost:$dbPort/$dbName",
                 "username" to dbUsername,
-                "changeLogFile" to "src/main/resources/db/changelog/db.changelog-master.xml"
+                "changeLogFile" to "src/main/resources/db/changelog/db.changelog.xml"
             )
         }
     }
