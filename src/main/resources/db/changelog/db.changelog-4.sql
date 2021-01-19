@@ -6,6 +6,17 @@
 -- Find games in which the number of turnovers of the winner team is more than the turnovers of  looser team.  V
 -- Show the games and players in which players has at least 10 assists, 10 points and has won a match (player were in winning team)G
 -- Compare how many minutes and threepointers attempted per game have done the top 10 players with more than 38% three pointer. G
+--ALTER STATEMENTS FOR ADDING NEW COLUMNS
+ALTER TABLE stats
+    add column home_team_score    integer NOT NULL,
+    add column visitor_team_score integer NOT NULL,
+    add column season             integer NOT NULL,
+    add column date_of_match      date    NOT NULL,
+    add column home_team_id       bigint  NOT NULL,
+    add column visitor_team_id    bigint  NOT NULL,
+    add column winner_team_id     bigint  NOT NULL;
+
+
 
 CREATE OR REPLACE FUNCTION
     best_player(player_id BIGINT, first_name TEXT, last_name TEXT, position TEXT, points DOUBLE PRECISION)
@@ -107,12 +118,13 @@ $$ LANGUAGE plpgsql;
 
 -- Show the games and players in which players has at least 10 assists, 10 points and has won a match (player were in winning team)G
 CREATE OR REPLACE FUNCTION
-    show_specific_players(points DOUBLE PRECISION, assist DOUBLE PRECISION)
+    show_specific_players(p_points DOUBLE PRECISION, p_assist DOUBLE PRECISION)
     RETURNS TEXT AS
 $$
 DECLARE
-    winner   BOOL;
-    whoiswho TEXT;
+    -- does not have conflict with parameters
+    v_winner BOOL;
+
 BEGIN
     SELECT stats.game_id,
            stats.points,
