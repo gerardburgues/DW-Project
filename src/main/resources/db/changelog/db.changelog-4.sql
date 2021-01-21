@@ -255,7 +255,8 @@ BEGIN
                p.last_name,
                CASE
                    WHEN stats.team_id == winner_team_id
-                       THEN times_Win = times_Win + 1,
+                       THEN times_Win = times_Win + 1
+                   END times_Win
 
         from stats
                  join players p on p.id = stats.player_id
