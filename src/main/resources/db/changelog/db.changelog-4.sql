@@ -164,28 +164,28 @@ DECLARE
 
 BEGIN
     return query
-        SELECT stats.game_id,
-               stats.points,
-               stats.assists,
-               stats.season,
-               stats.home_team_score,
-               stats.visitor_team_score,
-               stats.home_team_name,
-               stats.visitor_team_name,
-               stats.winner_team_id,
-               stats.home_team_id,
-               stats.visitor_team_id,
+        SELECT game_id,
+               points,
+               assists,
+               season,
+               home_team_score,
+               visitor_team_score,
+               home_team_name,
+               visitor_team_name,
+               winner_team_id,
+               home_team_id,
+               visitor_team_id,
                CASE
-                   WHEN stats.team_id == stats.winner_team_id
+                   WHEN team_id == winner_team_id
                        THEN v_winner = 1
-                   WHEN stats.team_id != stats.winner_team_id
+                   WHEN team_id != winner_team_id
                        THEN v_winner = 0
                    END v_winner
         FROM stats
-        WHERE stats.points >= 10
-          AND stats.assists >= 10
+        WHERE points >= 10
+          AND assists >= 10
           AND v_winner = 1
-        ORDER BY stats.points;
+        ORDER BY points;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -226,3 +226,42 @@ BEGIN
 
 END;
 $$ LANGUAGE plpgsql;
+
+-- How many times a team win in the last month of regular season March and the best scorer for each game
+CREATE OR REPLACE FUNCTION
+    How_a_team_changes(times_Win integer)
+    returns table
+            (
+                season            integer,
+                team_full_name    text,
+                times_Win         integer,
+                date_of_match     date,
+                game_id           bigint,
+                player_first_name text,
+                player_last_name  text,
+                most_points       integer
+            )
+    language plpgsql
+as
+$$
+BEGIN
+
+    Return query
+        Select season,
+               date_of_match,
+               game_id,
+               points,
+               p.first_name,
+               p.last_name,
+               CASE
+                   WHEN stats.team_id == winner_team_id
+                       THEN times_Win = times_Win + 1,
+
+        from stats
+                 join players p on p.id = stats.player_id
+        where date_of_match >= '2015-03-01'
+          AND date_of_match <= '2015-04-01'
+          and points = (select max(points) from stats)
+        order by times_Win;
+end;
+$$
