@@ -21,24 +21,39 @@ ALTER TABLE stats
     add column visitor_team_name text;
 
 CREATE OR REPLACE FUNCTION
-    best_player(player_id BIGINT, first_name TEXT, last_name TEXT, position TEXT, points DOUBLE PRECISION)
-    RETURNS DOUBLE PRECISION AS
+    best_player()
+    RETURNS TABLE
+    (
+        player_id BIGINT,
+        first_name TEXT,
+        last_name TEXT,
+        player_position TEXT,
+        points DOUBLE PRECISION
+    )
+    language plpgsql
+    as
 $$
 BEGIN
-    SELECT DISTINCT ON (p.position) (p.first_name || p.last_name) AS "full_name",
+    SELECT DISTINCT ON (p.player_position) (p.first_name || p.last_name) AS "full_name",
                                     a.player_id,
-                                    p.position,
+                                    p.player_position,
                                     a.points
     FROM averages AS a
              JOIN players AS p ON a.player_id = p.id
-    ORDER BY p.position, a.points DESC;
+    ORDER BY p.player_position, a.points DESC;
     RETURN points;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION
-    top_cities(team_id BIGINT, city TEXT, points INTEGER)
-    RETURNS INTEGER AS
+    top_cities()
+    RETURNS table (
+        team_id BIGINT,
+        city TEXT,
+        points INTEGER
+                  )
+    LANGUAGE plpgsql
+    as
 $$
 BEGIN
     SELECT s.team_id, t.city, SUM(s.points)
@@ -82,8 +97,15 @@ $$ LANGUAGE plpgsql;
 
 -- Correlation between height of player and how many 3-pointers he made V
 CREATE OR REPLACE FUNCTION
-    corr_height_player(player_id BIGINT, height_inches INTEGER, three_pointers_made DOUBLE PRECISION)
-    RETURNS DOUBLE PRECISION AS
+    corr_height_player()
+    RETURNS table
+    (
+        player_id BIGINT,
+        height_inches INTEGER,
+        three_pointers_made DOUBLE PRECISION
+    )
+    LANGUAGE plpgsql
+    as
 $$
 BEGIN
     SELECT a.player_id,
@@ -124,8 +146,16 @@ $$ LANGUAGE plpgsql;
 -- Find a games in which the number of turnovers of the winner team is more than the turnovers of  looser team.  V
 --this is INCORRECT!
 CREATE OR REPLACE FUNCTION
-    turnover_stat(id BIGINT, turnovers DOUBLE PRECISION, name TEXT, points DOUBLE PRECISION)
-    RETURNS DOUBLE PRECISION AS
+    turnover_stat()
+    RETURNS table
+    (
+        id BIGINT,
+        turnovers DOUBLE PRECISION,
+        name TEXT,
+        points DOUBLE PRECISION
+    )
+    LANGUAGE plpgsql
+    as
 $$
 BEGIN
     SELECT g.id,
