@@ -1,7 +1,14 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.springframework.r2dbc.core.DatabaseClient
+import kotlinx.coroutines.reactive.awaitSingle
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
+import org.springframework.data.r2dbc.core.insert
+import org.springframework.data.r2dbc.core.select
+import org.springframework.data.r2dbc.core.usingAndAwait
+import org.springframework.data.relational.core.query.Criteria.where
+import org.springframework.data.relational.core.query.Query.query
+import org.springframework.data.relational.core.query.isEqual
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.AveragesClient
 import pl.pwr.nbaproject.model.Queue
@@ -17,13 +24,13 @@ class AverageETLProcessor(
     rabbitReceiver: Receiver,
     rabbitSender: Sender,
     objectMapper: ObjectMapper,
-    databaseClient: DatabaseClient,
+    r2dbcEntityTemplate: R2dbcEntityTemplate,
     private val averagesClient: AveragesClient,
-) : AbstractETLProcessor<SeasonAverageMessage, AveragesWrapper, List<Average>>(
+) : AbstractETLProcessor<SeasonAverageMessage, AveragesWrapper, Average>(
     rabbitReceiver,
     rabbitSender,
     objectMapper,
-    databaseClient,
+    r2dbcEntityTemplate,
 ) {
 
     override val queue = Queue.AVERAGES
@@ -63,58 +70,21 @@ class AverageETLProcessor(
         }
     }
 
-    override suspend fun load(data: List<Average>): List<String> = data.map { Average ->
-        with(Average) {
-            //language=Greenplum
-            """
-INSERT INTO averages(
-    player_id, 
-    season,
-    games_played,
-    "minutes",
-    points,
-    assists,
-    rebounds,
-    defensive_rebounds,
-    offensive_rebounds,
-    blocks,
-    steals,
-    turnovers,
-    personal_fouls,
-    field_goals_attempted,
-    field_goals_made,
-    field_goal_percentage,
-    three_pointers_attempted,
-    three_pointers_made,
-    three_pointer_percentage,
-    free_throws_attempted,
-    free_throws_made,
-    free_throw_percentage
-) SELECT
-    $playerId,
-    $season,
-    $gamesPlayed,
-    '$minutes',
-    $points,
-    $assists,
-    $rebounds,
-    $defensiveRebounds,
-    $offensiveRebounds,
-    $blocks,
-    $steals,
-    $turnovers,
-    $personalFouls,
-    $fieldGoalsAttempted,
-    $fieldGoalsMade,
-    $fieldGoalPercentage,
-    $threePointersAttempted,
-    $threePointersMade,
-    $threePointerPercentage,
-    $freeThrowsAttempted,
-    $freeThrowsAttempted,
-    $fieldGoalPercentage
-WHERE NOT EXISTS (SELECT 1 FROM averages WHERE player_id = $playerId AND season = $season);"""
-        }
+    override suspend fun load(data: List<Average>) {
+        data
+            .filterNot { average ->
+                r2dbcEntityTemplate.select<Average>()
+                    .matching(
+                        query(
+                            where("player_id").isEqual(average.playerId)
+                                .and(where("season").isEqual(average.season))
+                        )
+                    )
+                    .exists()
+                    .awaitSingle()
+            }.map { average ->
+                r2dbcEntityTemplate.insert<Average>().usingAndAwait(average)
+            }
     }
 
 }

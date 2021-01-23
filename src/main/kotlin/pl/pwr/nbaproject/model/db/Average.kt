@@ -1,10 +1,11 @@
 package pl.pwr.nbaproject.model.db
 
+import org.springframework.data.annotation.Id
 import org.springframework.data.relational.core.mapping.Table
 
 @Table("averages")
 data class Average(
-    var playerId: Long,
+    @Id var playerId: Long,
     var season: Int,
     var gamesPlayed: Int,
     var minutes: String,

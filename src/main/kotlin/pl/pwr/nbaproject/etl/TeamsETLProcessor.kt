@@ -1,7 +1,14 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.springframework.r2dbc.core.DatabaseClient
+import kotlinx.coroutines.reactive.awaitSingle
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
+import org.springframework.data.r2dbc.core.insert
+import org.springframework.data.r2dbc.core.select
+import org.springframework.data.r2dbc.core.usingAndAwait
+import org.springframework.data.relational.core.query.Criteria.where
+import org.springframework.data.relational.core.query.Query.query
+import org.springframework.data.relational.core.query.isEqual
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.TeamsClient
 import pl.pwr.nbaproject.model.Queue.TEAMS
@@ -19,13 +26,13 @@ class TeamsETLProcessor(
     rabbitReceiver: Receiver,
     rabbitSender: Sender,
     objectMapper: ObjectMapper,
-    databaseClient: DatabaseClient,
+    r2dbcEntityTemplate: R2dbcEntityTemplate,
     private val teamsClient: TeamsClient,
-) : AbstractETLProcessor<PageMessage, TeamsWrapper, List<Team>>(
+) : AbstractETLProcessor<PageMessage, TeamsWrapper, Team>(
     rabbitReceiver,
     rabbitSender,
     objectMapper,
-    databaseClient,
+    r2dbcEntityTemplate,
 ) {
 
     override val queue = TEAMS
@@ -50,28 +57,17 @@ class TeamsETLProcessor(
         }
     }
 
-    override suspend fun load(data: List<Team>): List<String> = data.map { team ->
-        with(team) {
-            //language=Greenplum
-            """
-INSERT INTO teams (
-    id,
-    abbreviation,
-    city,
-    conference,
-    division,
-    full_name,
-    name
-) SELECT
-    $id,
-    '$abbreviation',
-    '$city',
-    '${conference.name}',
-    '${division.name}',
-    '$fullName',
-    '$name'
-WHERE NOT EXISTS (SELECT 1 FROM teams WHERE id = $id);"""
-        }
+    override suspend fun load(data: List<Team>) {
+        data
+            .filterNot { team ->
+                r2dbcEntityTemplate.select<Team>()
+                    .matching(query(where("id").isEqual(team.id)))
+                    .exists()
+                    .awaitSingle()
+            }
+            .map { team ->
+                r2dbcEntityTemplate.insert<Team>().usingAndAwait(team)
+            }
     }
 
 }

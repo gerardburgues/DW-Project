@@ -1,7 +1,14 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.springframework.r2dbc.core.DatabaseClient
+import kotlinx.coroutines.reactive.awaitSingle
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
+import org.springframework.data.r2dbc.core.insert
+import org.springframework.data.r2dbc.core.select
+import org.springframework.data.r2dbc.core.usingAndAwait
+import org.springframework.data.relational.core.query.Criteria.where
+import org.springframework.data.relational.core.query.Query.query
+import org.springframework.data.relational.core.query.isEqual
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.StatsClient
 import pl.pwr.nbaproject.model.Queue
@@ -17,13 +24,13 @@ class StatsETLProcessor(
     rabbitReceiver: Receiver,
     rabbitSender: Sender,
     objectMapper: ObjectMapper,
-    databaseClient: DatabaseClient,
+    r2dbcEntityTemplate: R2dbcEntityTemplate,
     private val statsClient: StatsClient,
-) : AbstractETLProcessor<StatsMessage, StatsWrapper, List<Stats>>(
+) : AbstractETLProcessor<StatsMessage, StatsWrapper, Stats>(
     rabbitReceiver,
     rabbitSender,
     objectMapper,
-    databaseClient,
+    r2dbcEntityTemplate,
 ) {
 
     override val queue: Queue = Queue.STATS
@@ -80,78 +87,17 @@ class StatsETLProcessor(
         }
     }
 
-    override suspend fun load(data: List<Stats>): List<String> = data.map { stats ->
-        with(stats) {
-            //language=Greenplum
-            """
-INSERT INTO stats(
-    id,
-    player_id,
-    team_id,
-    game_id,
-    home_team_id,
-    home_team_score,
-    visitor_team_id,
-    visitor_team_score,
-    winner_team_id,
-    season,
-    date,
-    first_name,
-    last_name,
-    minutes,
-    points,
-    assists,
-    rebounds,
-    defensive_rebounds,
-    offensive_rebounds,
-    blocks,
-    steals,
-    turnovers,
-    personal_fouls,
-    field_goals_attempted,
-    field_goals_made,
-    field_goal_percentage,
-    three_pointers_attempted,
-    three_pointers_made,
-    three_pointer_percentage,
-    free_throws_attempted,
-    free_throws_made,
-    free_throw_percentage
-) SELECT
-    $id,
-    $playerId,
-    $teamId,
-    $gameId,
-    $homeTeamId,
-    $homeTeamScore,
-    $visitorTeamId,
-    $visitorTeamScore,
-    $winnerTeamId,
-    $season,
-    '$date',
-    '$firstName',
-    '$lastName',
-    '$minutes',
-    $points,
-    $assists,
-    $rebounds,
-    $defensiveRebounds,
-    $offensiveRebounds,
-    $blocks,
-    $steals,
-    $turnovers,
-    $personalFouls,
-    $fieldGoalsAttempted,
-    $fieldGoalsMade,
-    $fieldGoalPercentage,
-    $threePointersAttempted,
-    $threePointersMade,
-    $threePointerPercentage,
-    $freeThrowsAttempted,
-    $freeThrowsMade,
-    $freeThrowPercentage
-WHERE NOT EXISTS (SELECT 1 FROM stats WHERE id = $id);"""
-        }
+    override suspend fun load(data: List<Stats>) {
+        data
+            .filterNot { stats ->
+                r2dbcEntityTemplate.select<Stats>()
+                    .matching(query(where("id").isEqual(stats.id)))
+                    .exists()
+                    .awaitSingle()
+            }
+            .map { stats ->
+                r2dbcEntityTemplate.insert<Stats>().usingAndAwait(stats)
+            }
     }
 
 }

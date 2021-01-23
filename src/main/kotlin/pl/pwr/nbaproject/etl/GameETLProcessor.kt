@@ -1,7 +1,14 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.springframework.r2dbc.core.DatabaseClient
+import kotlinx.coroutines.reactive.awaitSingle
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
+import org.springframework.data.r2dbc.core.insert
+import org.springframework.data.r2dbc.core.select
+import org.springframework.data.r2dbc.core.usingAndAwait
+import org.springframework.data.relational.core.query.Criteria.where
+import org.springframework.data.relational.core.query.Query.query
+import org.springframework.data.relational.core.query.isEqual
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.GamesClient
 import pl.pwr.nbaproject.model.Queue
@@ -17,13 +24,13 @@ class GameETLProcessor(
     rabbitReceiver: Receiver,
     rabbitSender: Sender,
     objectMapper: ObjectMapper,
-    databaseClient: DatabaseClient,
+    r2dbcEntityTemplate: R2dbcEntityTemplate,
     private val gamesClient: GamesClient,
-) : AbstractETLProcessor<GameMessage, GamesWrapper, List<Game>>(
+) : AbstractETLProcessor<GameMessage, GamesWrapper, Game>(
     rabbitReceiver,
     rabbitSender,
     objectMapper,
-    databaseClient,
+    r2dbcEntityTemplate,
 ) {
 
     override val queue = Queue.GAMES
@@ -53,38 +60,17 @@ class GameETLProcessor(
         }
     }
 
-    override suspend fun load(data: List<Game>): List<String> = data.map { Game ->
-        with(Game) {
-            //language=Greenplum
-            """
-INSERT INTO games (
-    id,
-    date,
-    home_team_score,
-    visitor_team_score,
-    season,
-    period,
-    status,
-    time,
-    postseason,
-    home_team_id,
-    visitor_team_id,
-    winner_team_id
-) SELECT 
-    $id,
-    '$date',
-    $homeTeamScore,
-    $visitorTeamScore,
-    $season,
-    $period,
-    '$status',
-    '$time',
-    $postseason,
-    $homeTeamId,
-    $visitorTeamId,
-    $winnerTeamId
-WHERE NOT EXISTS (SELECT 1 FROM games WHERE id = $id);"""
-        }
+    override suspend fun load(data: List<Game>) {
+        data
+            .filterNot { game ->
+                r2dbcEntityTemplate.select<Game>()
+                    .matching(query(where("id").isEqual(game.id)))
+                    .exists()
+                    .awaitSingle()
+            }
+            .map { game ->
+                r2dbcEntityTemplate.insert<Game>().usingAndAwait(game)
+            }
     }
 
 }

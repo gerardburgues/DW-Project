@@ -2,16 +2,14 @@ package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.r2dbc.spi.Result
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.reactor.mono
 import kotlinx.coroutines.withContext
 import org.apache.logging.log4j.kotlin.Logging
 import org.springframework.beans.factory.InitializingBean
-import org.springframework.r2dbc.core.DatabaseClient
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import pl.pwr.nbaproject.model.Queue
-import reactor.core.publisher.Flux
 import reactor.kotlin.core.publisher.toMono
 import reactor.rabbitmq.*
 import kotlin.reflect.KClass
@@ -24,7 +22,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     private val rabbitReceiver: Receiver,
     private val rabbitSender: Sender,
     private val objectMapper: ObjectMapper,
-    private val databaseClient: DatabaseClient,
+    protected val r2dbcEntityTemplate: R2dbcEntityTemplate,
 ) : Logging, InitializingBean {
 
     /**
@@ -56,8 +54,8 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
         queue: Queue,
         toMessage: suspend (AcknowledgableDelivery) -> T1?,
         extract: suspend (T1) -> T2,
-        transform: suspend (T2) -> T3,
-        load: suspend (T3) -> List<String>,
+        transform: suspend (T2) -> List<T3>,
+        load: suspend (List<T3>) -> Unit,
     ) {
         val consumeOptions = ConsumeOptions()
             .qos(60)
@@ -74,7 +72,6 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
             .flatMap { message -> mono { extract(message) } }
             .flatMap { data -> mono { transform(data) } }
             .flatMap { data -> mono { load(data) } }
-            .flatMap { queries -> executeQueries(queries) }
             .subscribe()
     }
 
@@ -98,18 +95,6 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
             delivery.nack(false)
             null
         }
-    }
-
-    /**
-     * Queries should be properly escaped, but for performance we ignore possible SQL-injection problems
-     */
-    private fun executeQueries(queries: List<String>): Flux<Result> {
-        return databaseClient.connectionFactory.create().toMono()
-            .flatMapMany { connection ->
-                val batch = connection.createBatch()
-                queries.forEach { query -> batch.add(query) }
-                batch.execute()
-            }
     }
 
     protected suspend fun sendMessage(message: T1) {
@@ -145,7 +130,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * @param data[T2] data from [AbstractETLProcessor.extract] step
      * @return [T3] transformed data in the acceptable form for [AbstractETLProcessor.load] step
      */
-    abstract suspend fun transform(data: T2): T3
+    abstract suspend fun transform(data: T2): List<T3>
 
     /**
      * Method for inserting the data into the data warehouse.
@@ -154,6 +139,6 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * @param data[T3] transformed data from the [AbstractETLProcessor.transform] step
      * @return list of SQL queries
      */
-    abstract suspend fun load(data: T3): List<String>
+    abstract suspend fun load(data: List<T3>)
 
 }

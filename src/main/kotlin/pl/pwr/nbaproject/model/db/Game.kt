@@ -1,11 +1,12 @@
 package pl.pwr.nbaproject.model.db
 
+import org.springframework.data.annotation.Id
 import org.springframework.data.relational.core.mapping.Table
 import java.time.LocalDate
 
 @Table("games")
 data class Game(
-    var id: Long,
+    @Id var id: Long,
     var date: LocalDate,
     var homeTeamScore: Int,
     var visitorTeamScore: Int,
