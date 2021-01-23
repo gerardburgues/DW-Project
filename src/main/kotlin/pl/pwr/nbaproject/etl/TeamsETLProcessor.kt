@@ -11,15 +11,22 @@ import pl.pwr.nbaproject.model.db.Conference
 import pl.pwr.nbaproject.model.db.Division
 import pl.pwr.nbaproject.model.db.Team
 import reactor.rabbitmq.Receiver
+import reactor.rabbitmq.Sender
 import kotlin.reflect.KClass
 
 @Service
 class TeamsETLProcessor(
     rabbitReceiver: Receiver,
+    rabbitSender: Sender,
     objectMapper: ObjectMapper,
     databaseClient: DatabaseClient,
     private val teamsClient: TeamsClient,
-) : AbstractETLProcessor<PageMessage, TeamsWrapper, List<Team>>(rabbitReceiver, objectMapper, databaseClient) {
+) : AbstractETLProcessor<PageMessage, TeamsWrapper, List<Team>>(
+    rabbitReceiver,
+    rabbitSender,
+    objectMapper,
+    databaseClient,
+) {
 
     override val queue = TEAMS
 
@@ -55,7 +62,7 @@ INSERT INTO teams (
     division,
     full_name,
     name
-) VALUES (
+) SELECT
     $id,
     '$abbreviation',
     '$city',
@@ -63,7 +70,7 @@ INSERT INTO teams (
     '${division.name}',
     '$fullName',
     '$name'
-);"""
+WHERE NOT EXISTS (SELECT 1 FROM teams WHERE id = $id);"""
         }
     }
 

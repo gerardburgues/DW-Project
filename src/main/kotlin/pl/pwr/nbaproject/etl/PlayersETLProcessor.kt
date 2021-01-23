@@ -9,15 +9,22 @@ import pl.pwr.nbaproject.model.amqp.PageMessage
 import pl.pwr.nbaproject.model.api.PlayersWrapper
 import pl.pwr.nbaproject.model.db.Player
 import reactor.rabbitmq.Receiver
+import reactor.rabbitmq.Sender
 import kotlin.reflect.KClass
 
 @Service
 class PlayersETLProcessor(
     rabbitReceiver: Receiver,
+    rabbitSender: Sender,
     objectMapper: ObjectMapper,
     databaseClient: DatabaseClient,
     private val playersClient: PlayersClient,
-) : AbstractETLProcessor<PageMessage, PlayersWrapper, List<Player>>(rabbitReceiver, objectMapper, databaseClient) {
+) : AbstractETLProcessor<PageMessage, PlayersWrapper, List<Player>>(
+    rabbitReceiver,
+    rabbitSender,
+    objectMapper,
+    databaseClient,
+) {
 
     override val queue = Queue.PLAYERS
 
@@ -27,18 +34,24 @@ class PlayersETLProcessor(
         playersClient.getPlayers(page, perPage)
     }
 
-    override suspend fun transform(data: PlayersWrapper): List<Player> = data.data.map { player ->
-        with(player) {
-            Player(
-                id = id,
-                firstName = firstName,
-                lastName = lastName,
-                position = position,
-                heightFeet = heightFeet,
-                heightInches = heightInches,
-                weightPounds = weightPounds,
-                teamId = team.id
-            )
+    override suspend fun transform(data: PlayersWrapper): List<Player> {
+        if (data.meta.nextPage != null && data.meta.nextPage <= 2) {
+            sendMessage(PageMessage(data.meta.nextPage))
+        }
+
+        return data.data.map { player ->
+            with(player) {
+                Player(
+                    id = id,
+                    firstName = firstName,
+                    lastName = lastName,
+                    position = position,
+                    heightFeet = heightFeet,
+                    heightInches = heightInches,
+                    weightPounds = weightPounds,
+                    teamId = team.id
+                )
+            }
         }
     }
 
@@ -55,16 +68,16 @@ INSERT INTO players (
     height_inches,
     weight_pounds,
     team_id
- ) VALUES (
+) SELECT
     $id,
     '$firstName',
-    $lastName,
-    $position,
+    '$lastName',
+    '$position',
     $heightFeet,
     $heightInches,
     $weightPounds,
     $teamId
-);"""
+WHERE NOT EXISTS (SELECT 1 FROM players WHERE id = $id);"""
         }
     }
 }

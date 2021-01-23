@@ -9,18 +9,21 @@ import pl.pwr.nbaproject.model.amqp.SeasonAverageMessage
 import pl.pwr.nbaproject.model.api.AveragesWrapper
 import pl.pwr.nbaproject.model.db.Average
 import reactor.rabbitmq.Receiver
+import reactor.rabbitmq.Sender
 import kotlin.reflect.KClass
 
 @Service
 class AverageETLProcessor(
     rabbitReceiver: Receiver,
+    rabbitSender: Sender,
     objectMapper: ObjectMapper,
     databaseClient: DatabaseClient,
     private val averagesClient: AveragesClient,
 ) : AbstractETLProcessor<SeasonAverageMessage, AveragesWrapper, List<Average>>(
     rabbitReceiver,
+    rabbitSender,
     objectMapper,
-    databaseClient
+    databaseClient,
 ) {
 
     override val queue = Queue.AVERAGES
@@ -64,7 +67,8 @@ class AverageETLProcessor(
         with(Average) {
             //language=Greenplum
             """
-INSERT INTO averages(player_id, 
+INSERT INTO averages(
+    player_id, 
     season,
     games_played,
     "minutes",
@@ -86,7 +90,7 @@ INSERT INTO averages(player_id,
     free_throws_attempted,
     free_throws_made,
     free_throw_percentage
-) VALUES (
+) SELECT
     $playerId,
     $season,
     $gamesPlayed,
@@ -109,7 +113,7 @@ INSERT INTO averages(player_id,
     $freeThrowsAttempted,
     $freeThrowsAttempted,
     $fieldGoalPercentage
-);"""
+WHERE NOT EXISTS (SELECT 1 FROM averages WHERE player_id = $playerId AND season = $season);"""
         }
     }
 

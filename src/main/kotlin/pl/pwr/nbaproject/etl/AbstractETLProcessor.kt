@@ -13,10 +13,7 @@ import org.springframework.r2dbc.core.DatabaseClient
 import pl.pwr.nbaproject.model.Queue
 import reactor.core.publisher.Flux
 import reactor.kotlin.core.publisher.toMono
-import reactor.rabbitmq.AcknowledgableDelivery
-import reactor.rabbitmq.ConsumeOptions
-import reactor.rabbitmq.ExceptionHandlers
-import reactor.rabbitmq.Receiver
+import reactor.rabbitmq.*
 import kotlin.reflect.KClass
 import kotlin.time.ExperimentalTime
 import kotlin.time.milliseconds
@@ -25,6 +22,7 @@ import kotlin.time.toJavaDuration
 
 abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     private val rabbitReceiver: Receiver,
+    private val rabbitSender: Sender,
     private val objectMapper: ObjectMapper,
     private val databaseClient: DatabaseClient,
 ) : Logging, InitializingBean {
@@ -112,6 +110,13 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
                 queries.forEach { query -> batch.add(query) }
                 batch.execute()
             }
+    }
+
+    protected suspend fun sendMessage(message: T1) {
+        val body = withContext(IO) {
+            objectMapper.writeValueAsBytes(message)
+        }
+        rabbitSender.send(OutboundMessage("", queue.queueName, body).toMono()).subscribe()
     }
 
     /**

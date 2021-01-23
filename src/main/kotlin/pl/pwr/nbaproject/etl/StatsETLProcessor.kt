@@ -9,23 +9,24 @@ import pl.pwr.nbaproject.model.amqp.StatsMessage
 import pl.pwr.nbaproject.model.api.StatsWrapper
 import pl.pwr.nbaproject.model.db.Stats
 import reactor.rabbitmq.Receiver
+import reactor.rabbitmq.Sender
 import kotlin.reflect.KClass
 
 @Service
 class StatsETLProcessor(
     rabbitReceiver: Receiver,
+    rabbitSender: Sender,
     objectMapper: ObjectMapper,
     databaseClient: DatabaseClient,
     private val statsClient: StatsClient,
-) : AbstractETLProcessor<StatsMessage,
-        StatsWrapper,
-        List<Stats>>(
+) : AbstractETLProcessor<StatsMessage, StatsWrapper, List<Stats>>(
     rabbitReceiver,
+    rabbitSender,
     objectMapper,
-    databaseClient
+    databaseClient,
 ) {
 
-    override val queue: Queue = Queue.PLAYERS
+    override val queue: Queue = Queue.STATS
 
     override val messageClass: KClass<StatsMessage> = StatsMessage::class
 
@@ -116,7 +117,7 @@ INSERT INTO stats(
     free_throws_attempted,
     free_throws_made,
     free_throw_percentage
-) VALUES (
+) SELECT
     $id,
     $playerId,
     $teamId,
@@ -149,7 +150,7 @@ INSERT INTO stats(
     $freeThrowsAttempted,
     $freeThrowsMade,
     $freeThrowPercentage
-);"""
+WHERE NOT EXISTS (SELECT 1 FROM stats WHERE id = $id);"""
         }
     }
 

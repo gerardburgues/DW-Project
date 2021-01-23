@@ -9,15 +9,22 @@ import pl.pwr.nbaproject.model.amqp.GameMessage
 import pl.pwr.nbaproject.model.api.GamesWrapper
 import pl.pwr.nbaproject.model.db.Game
 import reactor.rabbitmq.Receiver
+import reactor.rabbitmq.Sender
 import kotlin.reflect.KClass
 
 @Service
 class GameETLProcessor(
     rabbitReceiver: Receiver,
+    rabbitSender: Sender,
     objectMapper: ObjectMapper,
     databaseClient: DatabaseClient,
     private val gamesClient: GamesClient,
-) : AbstractETLProcessor<GameMessage, GamesWrapper, List<Game>>(rabbitReceiver, objectMapper, databaseClient) {
+) : AbstractETLProcessor<GameMessage, GamesWrapper, List<Game>>(
+    rabbitReceiver,
+    rabbitSender,
+    objectMapper,
+    databaseClient,
+) {
 
     override val queue = Queue.GAMES
 
@@ -63,7 +70,7 @@ INSERT INTO games (
     home_team_id,
     visitor_team_id,
     winner_team_id
-) VALUES (
+) SELECT 
     $id,
     '$date',
     $homeTeamScore,
@@ -76,7 +83,7 @@ INSERT INTO games (
     $homeTeamId,
     $visitorTeamId,
     $winnerTeamId
-);"""
+WHERE NOT EXISTS (SELECT 1 FROM games WHERE id = $id);"""
         }
     }
 
