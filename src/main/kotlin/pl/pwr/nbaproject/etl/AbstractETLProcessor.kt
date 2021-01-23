@@ -61,17 +61,17 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
         transform: suspend (T2) -> T3,
         load: suspend (T3) -> List<String>,
     ) {
-        rabbitReceiver.consumeManualAck(
-            queue.queueName,
-            ConsumeOptions()
-                .qos(60)
-                .exceptionHandler { context, exception ->
-                    ExceptionHandlers.RetryAcknowledgmentExceptionHandler(
-                        20.seconds.toJavaDuration(),
-                        500.milliseconds.toJavaDuration(),
-                        ExceptionHandlers.CONNECTION_RECOVERY_PREDICATE
-                    )
-                })
+        val consumeOptions = ConsumeOptions()
+            .qos(60)
+            .exceptionHandler(
+                ExceptionHandlers.RetryAcknowledgmentExceptionHandler(
+                    20.seconds.toJavaDuration(),
+                    500.milliseconds.toJavaDuration(),
+                    ExceptionHandlers.CONNECTION_RECOVERY_PREDICATE
+                )
+            )
+
+        rabbitReceiver.consumeManualAck(queue.queueName, consumeOptions)
             .flatMap { delivery -> mono { toMessage(delivery) } }
             .flatMap { message -> mono { extract(message) } }
             .flatMap { data -> mono { transform(data) } }
