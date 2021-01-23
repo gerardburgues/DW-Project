@@ -31,7 +31,15 @@ class TeamsETLProcessor(
 
     override suspend fun transform(data: TeamsWrapper): List<Team> = data.data.map { team ->
         with(team) {
-            Team(id, abbreviation, city, Conference.valueOf(conference), Division.valueOf(division), fullName, name)
+            Team(
+                id = id,
+                abbreviation = abbreviation,
+                city = city,
+                conference = Conference.valueOf(conference),
+                division = Division.valueOf(division),
+                fullName = fullName,
+                name = name
+            )
         }
     }
 
@@ -39,9 +47,23 @@ class TeamsETLProcessor(
         with(team) {
             //language=Greenplum
             """
-            |INSERT INTO teams (id, abbreviation, city, conference, division, full_name, "name")
-            |VALUES ($id, $abbreviation, $city, ${conference.name}, ${division.name}, $fullName, $name)
-            |""".trimMargin()
+INSERT INTO teams (
+    id,
+    abbreviation,
+    city,
+    conference,
+    division,
+    full_name,
+    "name"
+) VALUES (
+    $id,
+    $abbreviation,
+    $city,
+    ${conference.name},
+    ${division.name},
+    $fullName,
+    $name
+)"""
         }
     }
 

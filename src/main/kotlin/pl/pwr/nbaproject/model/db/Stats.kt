@@ -1,6 +1,7 @@
 package pl.pwr.nbaproject.model.db
 
 import org.springframework.data.relational.core.mapping.Table
+import java.time.LocalDate
 
 @Table("stats")
 data class Stats(
@@ -8,6 +9,12 @@ data class Stats(
     var playerId: Long,
     var teamId: Long,
     var gameId: Long,
+    var homeTeamScore: Int,
+    var visitorTeamScore: Int,
+    var season: Int,
+    var date: LocalDate,
+    var firstName: String,
+    var lastName: String,
     var minutes: String? = null,
     var points: Int? = null,
     var assists: Int? = null,

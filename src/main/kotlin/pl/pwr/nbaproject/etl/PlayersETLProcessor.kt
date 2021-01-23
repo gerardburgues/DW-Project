@@ -29,7 +29,16 @@ class PlayersETLProcessor(
 
     override suspend fun transform(data: PlayersWrapper): List<Player> = data.data.map { player ->
         with(player) {
-            Player(id, firstName, lastName, position, heightFeet, heightInches, weightPounds, team.id)
+            Player(
+                id = id,
+                firstName = firstName,
+                lastName = lastName,
+                position = position,
+                heightFeet = heightFeet,
+                heightInches = heightInches,
+                weightPounds = weightPounds,
+                teamId = team.id
+            )
         }
     }
 
@@ -37,9 +46,25 @@ class PlayersETLProcessor(
         with(player) {
             //language=Greenplum
             """
-            |INSERT INTO players (id, first_name, last_name, position, height_feet, height_inches, weight_pounds, team_id)
-            |VALUES ($id, $firstName, $lastName, $position, $heightFeet, $heightInches, $weightPounds, $teamId)
-            |""".trimMargin()
+INSERT INTO players (
+    id,
+    first_name,
+    last_name,
+    position,
+    height_feet,
+    height_inches,
+    weight_pounds,
+    team_id
+ ) VALUES (
+    $id,
+    $firstName,
+    $lastName,
+    $position,
+    $heightFeet,
+    $heightInches,
+    $weightPounds,
+    $teamId
+)"""
         }
     }
 }

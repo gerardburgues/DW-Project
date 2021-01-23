@@ -3,7 +3,6 @@ package pl.pwr.nbaproject.etl
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.r2dbc.spi.Result
-import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.GlobalScope
@@ -60,7 +59,6 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
             .flowOn(IO)
             .map(extract)
             .map(transform)
-            .flowOn(Default)
             .map(load)
             .flatMapMerge(DEFAULT_CONCURRENCY, ::executeQueries)
             .launchIn(GlobalScope)
@@ -82,6 +80,9 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
         }
     }
 
+    /**
+     * Queries should be properly escaped, but for performance we ignore possible SQL-injection problems
+     */
     private suspend fun executeQueries(queries: List<String>): Flow<Result> {
         val batch = databaseClient.connectionFactory.create().awaitSingle().createBatch()
         queries.forEach { query -> batch.add(query) }

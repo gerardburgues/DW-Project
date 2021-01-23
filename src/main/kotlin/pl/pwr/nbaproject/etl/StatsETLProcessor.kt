@@ -17,42 +17,61 @@ class StatsETLProcessor(
     objectMapper: ObjectMapper,
     databaseClient: DatabaseClient,
     private val statsClient: StatsClient,
-) : AbstractETLProcessor<StatsMessage, StatsWrapper, List<Stats>>(rabbitReceiver, objectMapper, databaseClient) {
+) : AbstractETLProcessor<StatsMessage,
+        StatsWrapper,
+        List<Stats>>(
+    rabbitReceiver,
+    objectMapper,
+    databaseClient
+) {
 
     override val queue: Queue = Queue.PLAYERS
 
     override val messageClass: KClass<StatsMessage> = StatsMessage::class
 
     override suspend fun extract(apiParams: StatsMessage): StatsWrapper = with(apiParams) {
-        statsClient.getStats(seasons, teamIds, gameIds, postSeason, page, page)
+        statsClient.getStats(
+            seasons,
+            teamIds,
+            gameIds,
+            postSeason,
+            page,
+            page
+        )
     }
 
     override suspend fun transform(data: StatsWrapper): List<Stats> = data.data.map { stats ->
         with(stats) {
             Stats(
-                id,
-                player.id,
-                team.id,
-                game.id,
-                minutes,
-                points,
-                assists,
-                rebounds,
-                defensiveRebounds,
-                offensiveRebounds,
-                blocks,
-                steals,
-                turnovers,
-                personalFouls,
-                fieldGoalsAttempted,
-                fieldGoalsMade,
-                fieldGoalPercentage,
-                threePointersAttempted,
-                threePointersMade,
-                threePointerPercentage,
-                freeThrowsAttempted,
-                freeThrowsMade,
-                freeThrowPercentage
+                id = id,
+                playerId = player.id,
+                teamId = team.id,
+                gameId = game.id,
+                homeTeamScore = game.homeTeamScore,
+                visitorTeamScore = game.visitorTeamScore,
+                season = game.season,
+                date = game.date,
+                firstName = player.firstName,
+                lastName = player.lastName,
+                minutes = minutes,
+                points = points,
+                assists = assists,
+                rebounds = rebounds,
+                defensiveRebounds = defensiveRebounds,
+                offensiveRebounds = offensiveRebounds,
+                blocks = blocks,
+                steals = steals,
+                turnovers = turnovers,
+                personalFouls = personalFouls,
+                fieldGoalsAttempted = fieldGoalsAttempted,
+                fieldGoalsMade = fieldGoalsMade,
+                fieldGoalPercentage = fieldGoalPercentage,
+                threePointersAttempted = threePointersAttempted,
+                threePointersMade = threePointersMade,
+                threePointerPercentage = threePointerPercentage,
+                freeThrowsAttempted = freeThrowsAttempted,
+                freeThrowsMade = freeThrowsMade,
+                freeThrowPercentage = freeThrowPercentage,
             )
         }
     }
@@ -61,58 +80,67 @@ class StatsETLProcessor(
         with(stats) {
             //language=Greenplum
             """
-            |INSERT INTO stats
-            |(
-            |    id,
-            |    player_id,
-            |    team_id,
-            |    game_id,
-            |    "minutes",
-            |    points,
-            |    assists,
-            |    rebounds,
-            |    defensive_rebounds,
-            |    offensive_rebounds,
-            |    blocks,
-            |    steals,
-            |    turnovers,
-            |    personal_fouls,
-            |    field_goals_attempted,
-            |    field_goals_made,
-            |    field_goal_percentage,
-            |    three_pointers_attempted,
-            |    three_pointers_made,
-            |    three_pointer_percentage,
-            |    free_throws_attempted,
-            |    free_throws_made,
-            |    free_throw_percentage
-            |)
-            |VALUES
-            |(
-            |    $id,
-            |    $playerId,
-            |    $teamId,
-            |    $gameId,
-            |    $minutes,
-            |    $points,
-            |    $assists,
-            |    $rebounds,
-            |    $defensiveRebounds,
-            |    $offensiveRebounds,
-            |    $blocks,
-            |    $steals,
-            |    $turnovers,
-            |    $personalFouls,
-            |    $fieldGoalsAttempted,
-            |    $fieldGoalsMade,
-            |    $fieldGoalPercentage,
-            |    $threePointersAttempted,
-            |    $threePointersMade,
-            |    $threePointerPercentage,
-            |    $freeThrowsAttempted,
-            |    $freeThrowsMade,
-            |    $freeThrowPercentage
-            |)""".trimMargin()
+INSERT INTO stats(
+    id,
+    player_id,
+    team_id,
+    game_id,
+    home_team_score,
+    visitor_team_score,
+    season,
+    date,
+    first_name,
+    last_name,
+    minutes,
+    points,
+    assists,
+    rebounds,
+    defensive_rebounds,
+    offensive_rebounds,
+    blocks,
+    steals,
+    turnovers,
+    personal_fouls,
+    field_goals_attempted,
+    field_goals_made,
+    field_goal_percentage,
+    three_pointers_attempted,
+    three_pointers_made,
+    three_pointer_percentage,
+    free_throws_attempted,
+    free_throws_made,
+    free_throw_percentage
+) VALUES (
+    $id,
+    $playerId,
+    $teamId,
+    $gameId,
+    $homeTeamScore,
+    $visitorTeamScore,
+    $season,
+    $date,
+    $firstName,
+    $lastName,
+    $minutes,
+    $points,
+    $assists,
+    $rebounds,
+    $defensiveRebounds,
+    $offensiveRebounds,
+    $blocks,
+    $steals,
+    $turnovers,
+    $personalFouls,
+    $fieldGoalsAttempted,
+    $fieldGoalsMade,
+    $fieldGoalPercentage,
+    $threePointersAttempted,
+    $threePointersMade,
+    $threePointerPercentage,
+    $freeThrowsAttempted,
+    $freeThrowsMade,
+    $freeThrowPercentage
+)"""
         }
     }
 

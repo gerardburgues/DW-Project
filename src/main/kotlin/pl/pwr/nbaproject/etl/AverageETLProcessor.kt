@@ -16,7 +16,7 @@ class AverageETLProcessor(
     rabbitReceiver: Receiver,
     objectMapper: ObjectMapper,
     databaseClient: DatabaseClient,
-    private val AveragesClient: AveragesClient,
+    private val averagesClient: AveragesClient,
 ) : AbstractETLProcessor<SeasonAverageMessage, AveragesWrapper, List<Average>>(
     rabbitReceiver,
     objectMapper,
@@ -28,20 +28,34 @@ class AverageETLProcessor(
     override val messageClass: KClass<SeasonAverageMessage> = SeasonAverageMessage::class
 
     override suspend fun extract(apiParams: SeasonAverageMessage): AveragesWrapper = with(apiParams) {
-        AveragesClient.getAverages(playerIds, season)
+        averagesClient.getAverages(playerIds, season)
     }
 
     override suspend fun transform(data: AveragesWrapper): List<Average> = data.data.map { Average ->
         with(Average) {
             Average(
-                playerId, season,
-                gamesPlayed, minutes,
-                points, assists,
-                rebounds, defensiveRebounds, offensiveRebounds, blocks,
-                steals, turnovers, personalFouls,
-                fieldGoalsAttempted, fieldGoalsMade, fieldGoalPercentage,
-                threePointersAttempted, threePointersMade, threePointerPercentage,
-                freeThrowsAttempted, freeThrowsMade, freeThrowPercentage
+                playerId = playerId,
+                season = season,
+                gamesPlayed = gamesPlayed,
+                minutes = minutes,
+                points = points,
+                assists = assists,
+                rebounds = rebounds,
+                defensiveRebounds = defensiveRebounds,
+                offensiveRebounds = offensiveRebounds,
+                blocks = blocks,
+                steals = steals,
+                turnovers = turnovers,
+                personalFouls = personalFouls,
+                fieldGoalsAttempted = fieldGoalsAttempted,
+                fieldGoalsMade = fieldGoalsMade,
+                fieldGoalPercentage = fieldGoalPercentage,
+                threePointersAttempted = threePointersAttempted,
+                threePointersMade = threePointersMade,
+                threePointerPercentage = threePointerPercentage,
+                freeThrowsAttempted = freeThrowsAttempted,
+                freeThrowsMade = freeThrowsMade,
+                freeThrowPercentage = freeThrowPercentage
             )
         }
     }
@@ -50,55 +64,52 @@ class AverageETLProcessor(
         with(Average) {
             //language=Greenplum
             """
-            |INSERT INTO averages(
-            |    player_id,
-            |    season,
-            |    games_played,
-            |    "minutes",
-            |    points,
-            |    assists,
-            |    rebounds,
-            |    defensive_rebounds
-            |    offensive_rebounds,
-            |    blocks,
-            |    steals,
-            |    turnovers,
-            |    personal_fouls,
-            |    field_goals_attempted,
-            |    field_goals_made,
-            |    field_goal_percentage,
-            |    three_pointers_attempted,
-            |    three_pointers_made,
-            |    three_pointer_percentage,
-            |    free_throws_attempted,
-            |    free_throws_made,
-            |    free_throw_percentage
-            |) 
-            |VALUES 
-            |(
-            |    $playerId,
-            |    $season,
-            |    $gamesPlayed,
-            |    $minutes,
-            |    $points,
-            |    $assists,
-            |    $rebounds,
-            |    $defensiveRebounds,
-            |    $offensiveRebounds,
-            |    $blocks,
-            |    $steals,
-            |    $turnovers,
-            |    $personalFouls,
-            |    $fieldGoalsAttempted,
-            |    $fieldGoalsMade,
-            |    $fieldGoalPercentage,
-            |    $threePointersAttempted,
-            |    $threePointersMade,
-            |    $threePointerPercentage,
-            |    $freeThrowsAttempted,
-            |    $freeThrowsAttempted,
-            |    $fieldGoalPercentage
-            |)""".trimMargin()
+INSERT INTO averages(player_id, 
+    season,
+    games_played,
+    "minutes",
+    points,
+    assists,
+    rebounds,
+    defensive_rebounds,
+    offensive_rebounds,
+    blocks,
+    steals,
+    turnovers,
+    personal_fouls,
+    field_goals_attempted,
+    field_goals_made,
+    field_goal_percentage,
+    three_pointers_attempted,
+    three_pointers_made,
+    three_pointer_percentage,
+    free_throws_attempted,
+    free_throws_made,
+    free_throw_percentage
+) VALUES (
+    $playerId,
+    $season,
+    $gamesPlayed,
+    $minutes,
+    $points,
+    $assists,
+    $rebounds,
+    $defensiveRebounds,
+    $offensiveRebounds,
+    $blocks,
+    $steals,
+    $turnovers,
+    $personalFouls,
+    $fieldGoalsAttempted,
+    $fieldGoalsMade,
+    $fieldGoalPercentage,
+    $threePointersAttempted,
+    $threePointersMade,
+    $threePointerPercentage,
+    $freeThrowsAttempted,
+    $freeThrowsAttempted,
+    $fieldGoalPercentage
+)"""
         }
     }
 

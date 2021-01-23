@@ -30,13 +30,18 @@ class GameETLProcessor(
     override suspend fun transform(data: GamesWrapper): List<Game> = data.data.map { game ->
         with(game) {
             Game(
-                id, date, homeTeamScore,
-                visitorTeamScore, season,
-                period, status, time,
-                postseason, homeTeam.id, visitorTeam.id,
-
-                )
-
+                id = id,
+                date = date,
+                homeTeamScore = homeTeamScore,
+                visitorTeamScore = visitorTeamScore,
+                season = season,
+                period = period,
+                status = status,
+                time = time,
+                postseason = postseason,
+                homeTeamId = homeTeam.id,
+                visitorTeamId = visitorTeam.id
+            )
         }
     }
 
@@ -44,33 +49,33 @@ class GameETLProcessor(
         with(Game) {
             //language=Greenplum
             """
-            |INSERT INTO games
-            |(
-            |    id,
-            |    date,
-            |    home_team_score,
-            |    season,
-            |    period,
-            |    status,
-            |    "time",
-            |    postseason,
-            |    home_team_id,
-            |    visitor_team_id  
-            |)
-            |VALUES
-            |(
-            |    $id,
-            |    $date,
-            |    $homeTeamScore,
-            |    $visitorTeamScore,
-            |    $season,
-            |    $period,
-            |    $status,
-            |    $time,
-            |    $postseason,
-            |    $homeTeamId,
-            |    $visitorTeamId
-            |)""".trimMargin()
+INSERT INTO games (
+    id,
+    date,
+    home_team_score,
+    visitor_team_score,
+    season,
+    period,
+    status,
+    time,
+    postseason,
+    home_team_id,
+    visitor_team_id,
+    winner_team_id
+) VALUES (
+    $id,
+    $date,
+    $homeTeamScore,
+    $visitorTeamScore,
+    $season,
+    $period,
+    $status,
+    $time,
+    $postseason,
+    $homeTeamId,
+    $visitorTeamId,
+    $winnerTeamId
+)"""
         }
     }
 
