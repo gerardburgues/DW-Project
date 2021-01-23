@@ -65,18 +65,18 @@ INSERT INTO games (
     winner_team_id
 ) VALUES (
     $id,
-    $date,
+    '$date',
     $homeTeamScore,
     $visitorTeamScore,
     $season,
     $period,
-    $status,
-    $time,
+    '$status',
+    '$time',
     $postseason,
     $homeTeamId,
     $visitorTeamId,
     $winnerTeamId
-)"""
+);"""
         }
     }
 

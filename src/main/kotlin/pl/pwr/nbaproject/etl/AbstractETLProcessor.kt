@@ -5,15 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.r2dbc.spi.Result
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.reactive.asFlow
-import kotlinx.coroutines.reactive.awaitSingle
 import kotlinx.coroutines.reactor.mono
 import kotlinx.coroutines.withContext
 import org.apache.logging.log4j.kotlin.Logging
 import org.springframework.beans.factory.InitializingBean
 import org.springframework.r2dbc.core.DatabaseClient
 import pl.pwr.nbaproject.model.Queue
+import reactor.core.publisher.Flux
+import reactor.kotlin.core.publisher.toMono
 import reactor.rabbitmq.AcknowledgableDelivery
 import reactor.rabbitmq.ConsumeOptions
 import reactor.rabbitmq.ExceptionHandlers
@@ -71,7 +70,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
             .flatMap { message -> mono { extract(message) } }
             .flatMap { data -> mono { transform(data) } }
             .flatMap { data -> mono { load(data) } }
-            .flatMap { queries -> mono { executeQueries(queries) } }
+            .flatMap { queries -> executeQueries(queries) }
             .subscribe()
     }
 
@@ -100,10 +99,13 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     /**
      * Queries should be properly escaped, but for performance we ignore possible SQL-injection problems
      */
-    private suspend fun executeQueries(queries: List<String>): Flow<Result> {
-        val batch = databaseClient.connectionFactory.create().awaitSingle().createBatch()
-        queries.forEach { query -> batch.add(query) }
-        return batch.execute().asFlow()
+    private fun executeQueries(queries: List<String>): Flux<Result> {
+        return databaseClient.connectionFactory.create().toMono()
+            .flatMapMany { connection ->
+                val batch = connection.createBatch()
+                queries.forEach { query -> batch.add(query) }
+                batch.execute()
+            }
     }
 
     /**

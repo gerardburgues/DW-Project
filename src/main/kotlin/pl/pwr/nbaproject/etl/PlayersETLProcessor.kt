@@ -57,14 +57,14 @@ INSERT INTO players (
     team_id
  ) VALUES (
     $id,
-    $firstName,
+    '$firstName',
     $lastName,
     $position,
     $heightFeet,
     $heightInches,
     $weightPounds,
     $teamId
-)"""
+);"""
         }
     }
 }

@@ -18,7 +18,7 @@ data class Stats(
     var date: LocalDate,
     var firstName: String,
     var lastName: String,
-    var minutes: String? = null,
+    var minutes: String,
     var points: Int? = null,
     var assists: Int? = null,
     var rebounds: Int? = null,

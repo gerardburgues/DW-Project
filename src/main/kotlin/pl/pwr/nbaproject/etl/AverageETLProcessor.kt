@@ -90,7 +90,7 @@ INSERT INTO averages(player_id,
     $playerId,
     $season,
     $gamesPlayed,
-    $minutes,
+    '$minutes',
     $points,
     $assists,
     $rebounds,
@@ -109,7 +109,7 @@ INSERT INTO averages(player_id,
     $freeThrowsAttempted,
     $freeThrowsAttempted,
     $fieldGoalPercentage
-)"""
+);"""
         }
     }
 

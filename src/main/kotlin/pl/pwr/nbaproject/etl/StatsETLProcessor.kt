@@ -127,10 +127,10 @@ INSERT INTO stats(
     $visitorTeamScore,
     $winnerTeamId,
     $season,
-    $date,
-    $firstName,
-    $lastName,
-    $minutes,
+    '$date',
+    '$firstName',
+    '$lastName',
+    '$minutes',
     $points,
     $assists,
     $rebounds,
@@ -149,7 +149,7 @@ INSERT INTO stats(
     $freeThrowsAttempted,
     $freeThrowsMade,
     $freeThrowPercentage
-)"""
+);"""
         }
     }
 

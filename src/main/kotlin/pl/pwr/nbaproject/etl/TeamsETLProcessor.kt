@@ -35,8 +35,8 @@ class TeamsETLProcessor(
                 id = id,
                 abbreviation = abbreviation,
                 city = city,
-                conference = Conference.valueOf(conference),
-                division = Division.valueOf(division),
+                conference = Conference.valueOf(conference.toUpperCase()),
+                division = Division.valueOf(division.toUpperCase()),
                 fullName = fullName,
                 name = name
             )
@@ -54,16 +54,16 @@ INSERT INTO teams (
     conference,
     division,
     full_name,
-    "name"
+    name
 ) VALUES (
     $id,
-    $abbreviation,
-    $city,
-    ${conference.name},
-    ${division.name},
-    $fullName,
-    $name
-)"""
+    '$abbreviation',
+    '$city',
+    '${conference.name}',
+    '${division.name}',
+    '$fullName',
+    '$name'
+);"""
         }
     }
 
