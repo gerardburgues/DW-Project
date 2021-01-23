@@ -41,22 +41,28 @@ class GameETLProcessor(
         gamesClient.getGames(seasons, teamIds, postSeason, page, perPage)
     }
 
-    override suspend fun transform(data: GamesWrapper): List<Game> = data.data.map { game ->
-        with(game) {
-            Game(
-                id = id,
-                date = date,
-                homeTeamScore = homeTeamScore,
-                visitorTeamScore = visitorTeamScore,
-                season = season,
-                period = period,
-                status = status,
-                time = time,
-                postseason = postseason,
-                homeTeamId = homeTeam.id,
-                visitorTeamId = visitorTeam.id,
-                winnerTeamId = if (homeTeamScore > visitorTeamScore) homeTeam.id else visitorTeam.id
-            )
+    override suspend fun transform(data: GamesWrapper): List<Game> {
+        if (data.meta.nextPage != null) {
+            sendMessage(GameMessage(page = data.meta.nextPage))
+        }
+
+        return data.data.map { game ->
+            with(game) {
+                Game(
+                    id = id,
+                    date = date,
+                    homeTeamScore = homeTeamScore,
+                    visitorTeamScore = visitorTeamScore,
+                    season = season,
+                    period = period,
+                    status = status,
+                    time = time,
+                    postseason = postseason,
+                    homeTeamId = homeTeam.id,
+                    visitorTeamId = visitorTeam.id,
+                    winnerTeamId = if (homeTeamScore > visitorTeamScore) homeTeam.id else visitorTeam.id
+                )
+            }
         }
     }
 

@@ -41,8 +41,8 @@ class AverageETLProcessor(
         averagesClient.getAverages(playerIds, season)
     }
 
-    override suspend fun transform(data: AveragesWrapper): List<Average> = data.data.map { Average ->
-        with(Average) {
+    override suspend fun transform(data: AveragesWrapper): List<Average> = data.data.map { average ->
+        with(average) {
             Average(
                 playerId = playerId,
                 season = season,

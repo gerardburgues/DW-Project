@@ -43,17 +43,23 @@ class TeamsETLProcessor(
         teamsClient.getTeams(page, perPage)
     }
 
-    override suspend fun transform(data: TeamsWrapper): List<Team> = data.data.map { team ->
-        with(team) {
-            Team(
-                id = id,
-                abbreviation = abbreviation,
-                city = city,
-                conference = Conference.valueOf(conference.toUpperCase()),
-                division = Division.valueOf(division.toUpperCase()),
-                fullName = fullName,
-                name = name
-            )
+    override suspend fun transform(data: TeamsWrapper): List<Team> {
+        if (data.meta.nextPage != null) {
+            sendMessage(PageMessage(page = data.meta.nextPage))
+        }
+
+        return data.data.map { team ->
+            with(team) {
+                Team(
+                    id = id,
+                    abbreviation = abbreviation,
+                    city = city,
+                    conference = Conference.valueOf(conference.toUpperCase()),
+                    division = Division.valueOf(division.toUpperCase()),
+                    fullName = fullName,
+                    name = name
+                )
+            }
         }
     }
 

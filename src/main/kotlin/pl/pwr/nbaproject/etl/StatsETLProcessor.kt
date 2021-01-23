@@ -48,42 +48,48 @@ class StatsETLProcessor(
         )
     }
 
-    override suspend fun transform(data: StatsWrapper): List<Stats> = data.data.map { stats ->
-        with(stats) {
-            Stats(
-                id = id,
-                playerId = player.id,
-                teamId = team.id,
-                gameId = game.id,
-                homeTeamId = game.homeTeamId,
-                homeTeamScore = game.homeTeamScore,
-                visitorTeamId = game.visitorTeamId,
-                visitorTeamScore = game.visitorTeamScore,
-                winnerTeamId = if (game.homeTeamScore > game.visitorTeamScore) game.homeTeamId else game.visitorTeamId,
-                season = game.season,
-                date = game.date,
-                firstName = player.firstName,
-                lastName = player.lastName,
-                minutes = minutes,
-                points = points,
-                assists = assists,
-                rebounds = rebounds,
-                defensiveRebounds = defensiveRebounds,
-                offensiveRebounds = offensiveRebounds,
-                blocks = blocks,
-                steals = steals,
-                turnovers = turnovers,
-                personalFouls = personalFouls,
-                fieldGoalsAttempted = fieldGoalsAttempted,
-                fieldGoalsMade = fieldGoalsMade,
-                fieldGoalPercentage = fieldGoalPercentage,
-                threePointersAttempted = threePointersAttempted,
-                threePointersMade = threePointersMade,
-                threePointerPercentage = threePointerPercentage,
-                freeThrowsAttempted = freeThrowsAttempted,
-                freeThrowsMade = freeThrowsMade,
-                freeThrowPercentage = freeThrowPercentage,
-            )
+    override suspend fun transform(data: StatsWrapper): List<Stats> {
+        if (data.meta.nextPage != null) {
+            sendMessage(StatsMessage(page = data.meta.nextPage))
+        }
+
+        return data.data.map { stats ->
+            with(stats) {
+                Stats(
+                    id = id,
+                    playerId = player.id,
+                    teamId = team.id,
+                    gameId = game.id,
+                    homeTeamId = game.homeTeamId,
+                    homeTeamScore = game.homeTeamScore,
+                    visitorTeamId = game.visitorTeamId,
+                    visitorTeamScore = game.visitorTeamScore,
+                    winnerTeamId = if (game.homeTeamScore > game.visitorTeamScore) game.homeTeamId else game.visitorTeamId,
+                    season = game.season,
+                    date = game.date,
+                    firstName = player.firstName,
+                    lastName = player.lastName,
+                    minutes = minutes,
+                    points = points,
+                    assists = assists,
+                    rebounds = rebounds,
+                    defensiveRebounds = defensiveRebounds,
+                    offensiveRebounds = offensiveRebounds,
+                    blocks = blocks,
+                    steals = steals,
+                    turnovers = turnovers,
+                    personalFouls = personalFouls,
+                    fieldGoalsAttempted = fieldGoalsAttempted,
+                    fieldGoalsMade = fieldGoalsMade,
+                    fieldGoalPercentage = fieldGoalPercentage,
+                    threePointersAttempted = threePointersAttempted,
+                    threePointersMade = threePointersMade,
+                    threePointerPercentage = threePointerPercentage,
+                    freeThrowsAttempted = freeThrowsAttempted,
+                    freeThrowsMade = freeThrowsMade,
+                    freeThrowPercentage = freeThrowPercentage,
+                )
+            }
         }
     }
 
