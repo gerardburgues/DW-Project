@@ -89,7 +89,10 @@ ALTER TABLE stats
     ALTER COLUMN visitor_team_id SET NOT NULL,
     ALTER COLUMN winner_team_id SET NOT NULL,
     ALTER COLUMN home_team_name SET NOT NULL,
-    ALTER COLUMN visitor_team_name SET NOT NULL;
+    ALTER COLUMN visitor_team_name SET NOT NULL,
+    ADD FOREIGN KEY (visitor_team_id) REFERENCES teams (id) MATCH FULL,
+    ADD FOREIGN KEY (winner_team_id) REFERENCES teams (id) MATCH FULL,
+    ADD FOREIGN KEY (home_team_id) REFERENCES teams (id) MATCH FULL;
 
 ALTER TABLE games
     ADD COLUMN winner_team_id BIGINT;
