@@ -5,16 +5,20 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.r2dbc.spi.Result
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.reactive.awaitSingle
+import kotlinx.coroutines.reactor.mono
+import kotlinx.coroutines.withContext
 import org.apache.logging.log4j.kotlin.Logging
 import org.springframework.beans.factory.InitializingBean
 import org.springframework.r2dbc.core.DatabaseClient
 import pl.pwr.nbaproject.model.Queue
 import reactor.rabbitmq.AcknowledgableDelivery
+import reactor.rabbitmq.ConsumeOptions
+import reactor.rabbitmq.ExceptionHandlers
 import reactor.rabbitmq.Receiver
+import java.time.Duration
 import kotlin.reflect.KClass
 
 abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
@@ -35,7 +39,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * Overloaded version using abstract methods.
      */
     open fun init() {
-        this.init(queue, ::extract, ::transform, ::load)
+        this.init(queue, ::toMessage, ::extract, ::transform, ::load)
     }
 
     /**
@@ -50,29 +54,42 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     @OptIn(FlowPreview::class)
     private fun init(
         queue: Queue,
+        toMessage: suspend (AcknowledgableDelivery) -> T1?,
         extract: suspend (T1) -> T2,
         transform: suspend (T2) -> T3,
         load: suspend (T3) -> List<String>,
     ) {
-        rabbitReceiver.consumeManualAck(queue.queueName).asFlow()
-            .mapNotNull(::toMessage)
-            .flowOn(IO)
-            .map(extract)
-            .map(transform)
-            .map(load)
-            .flatMapMerge(DEFAULT_CONCURRENCY, ::executeQueries)
-            .launchIn(GlobalScope)
+        rabbitReceiver.consumeManualAck(
+            queue.queueName,
+            ConsumeOptions().qos(60).exceptionHandler { context, exception ->
+                ExceptionHandlers.RetryAcknowledgmentExceptionHandler(
+                    Duration.ofSeconds(20), Duration.ofMillis(500),
+                    ExceptionHandlers.CONNECTION_RECOVERY_PREDICATE
+                )
+            })
+            .flatMap { delivery -> mono { toMessage(delivery) } }
+            .flatMap { message -> mono { extract(message) } }
+            .flatMap { data -> mono { transform(data) } }
+            .flatMap { data -> mono { load(data) } }
+            .flatMap { queries -> mono { executeQueries(queries) } }
+            .subscribe()
     }
 
-    private fun toMessage(delivery: AcknowledgableDelivery): T1? {
+    /**
+     * Jackson ObjectMapper.readValue is a blocking API, I think that this should work fine...
+     */
+    private suspend fun toMessage(delivery: AcknowledgableDelivery): T1? {
         return try {
             logger.debug {
                 "Message: ${delivery.body.decodeToString()}"
             }
 
-            val obj = objectMapper.readValue(delivery.body, messageClass.java)
+            val mappedMessage = withContext(IO) {
+                objectMapper.readValue(delivery.body, messageClass.java)
+            }
+
             delivery.ack()
-            obj
+            mappedMessage
         } catch (e: JsonProcessingException) {
             logger.error(e)
             delivery.nack(false)
