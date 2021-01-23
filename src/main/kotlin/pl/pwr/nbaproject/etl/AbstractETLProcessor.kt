@@ -17,8 +17,11 @@ import reactor.rabbitmq.AcknowledgableDelivery
 import reactor.rabbitmq.ConsumeOptions
 import reactor.rabbitmq.ExceptionHandlers
 import reactor.rabbitmq.Receiver
-import java.time.Duration
 import kotlin.reflect.KClass
+import kotlin.time.ExperimentalTime
+import kotlin.time.milliseconds
+import kotlin.time.seconds
+import kotlin.time.toJavaDuration
 
 abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     private val rabbitReceiver: Receiver,
@@ -50,7 +53,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * @param transform function for data transformation from the extraction step to the form acceptable for the data warehouse
      * @param load function for inserting the data into the data warehouse
      */
-    @OptIn(FlowPreview::class)
+    @OptIn(FlowPreview::class, ExperimentalTime::class)
     private fun init(
         queue: Queue,
         toMessage: suspend (AcknowledgableDelivery) -> T1?,
@@ -60,12 +63,15 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     ) {
         rabbitReceiver.consumeManualAck(
             queue.queueName,
-            ConsumeOptions().qos(60).exceptionHandler { context, exception ->
-                ExceptionHandlers.RetryAcknowledgmentExceptionHandler(
-                    Duration.ofSeconds(20), Duration.ofMillis(500),
-                    ExceptionHandlers.CONNECTION_RECOVERY_PREDICATE
-                )
-            })
+            ConsumeOptions()
+                .qos(60)
+                .exceptionHandler { context, exception ->
+                    ExceptionHandlers.RetryAcknowledgmentExceptionHandler(
+                        20.seconds.toJavaDuration(),
+                        500.milliseconds.toJavaDuration(),
+                        ExceptionHandlers.CONNECTION_RECOVERY_PREDICATE
+                    )
+                })
             .flatMap { delivery -> mono { toMessage(delivery) } }
             .flatMap { message -> mono { extract(message) } }
             .flatMap { data -> mono { transform(data) } }
