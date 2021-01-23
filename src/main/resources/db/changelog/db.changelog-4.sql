@@ -60,6 +60,37 @@ ALTER TABLE stats
     ALTER COLUMN first_name SET NOT NULL,
     ALTER COLUMN last_name SET NOT NULL;
 
+ALTER TABLE stats
+    ADD COLUMN home_team_id      BIGINT,
+    ADD COLUMN visitor_team_id   BIGINT,
+    ADD COLUMN winner_team_id    BIGINT,
+    ADD COLUMN home_team_name    TEXT,
+    ADD COLUMN visitor_team_name TEXT;
+
+UPDATE stats
+SET home_team_id    = games.home_team_id,
+    visitor_team_id = games.visitor_team_id,
+    winner_team_id  = games.winner_team_id
+FROM games
+WHERE stats.game_id = games.id;
+
+UPDATE stats
+SET home_team_name = name
+FROM teams
+WHERE stats.home_team_id = teams.id;
+
+UPDATE stats
+SET visitor_team_name = name
+FROM teams
+WHERE stats.visitor_team_id = teams.id;
+
+ALTER TABLE stats
+    ALTER COLUMN home_team_id SET NOT NULL,
+    ALTER COLUMN visitor_team_id SET NOT NULL,
+    ALTER COLUMN winner_team_id SET NOT NULL,
+    ALTER COLUMN home_team_name SET NOT NULL,
+    ALTER COLUMN visitor_team_name SET NOT NULL;
+
 ALTER TABLE games
     ADD COLUMN winner_team_id BIGINT;
 
