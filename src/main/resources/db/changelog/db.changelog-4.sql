@@ -6,7 +6,6 @@
 -- Find games in which the number of turnovers of the winner team is more than the turnovers of  looser team.  V
 -- Show the games and players in which players has at least 10 assists, 10 points and has won a match (player were in winning team)G
 -- Compare how many minutes and threepointers attempted per game have done the top 10 players with more than 38% three pointer. G
---ALTER STATEMENTS FOR ADDING NEW COLUMNS
 
 CREATE OR REPLACE FUNCTION find_winner_id(p_game_id BIGINT) RETURNS BIGINT AS
 $$

@@ -93,5 +93,6 @@ tasks.withType<Test> {
 }
 
 tasks.withType<ProcessResources> {
+    exclude("db/")
     expand(project.properties)
 }
