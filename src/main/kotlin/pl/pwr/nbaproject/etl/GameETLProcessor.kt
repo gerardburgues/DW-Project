@@ -40,7 +40,8 @@ class GameETLProcessor(
                 time = time,
                 postseason = postseason,
                 homeTeamId = homeTeam.id,
-                visitorTeamId = visitorTeam.id
+                visitorTeamId = visitorTeam.id,
+                winnerTeamId = if (homeTeamScore > visitorTeamScore) homeTeam.id else visitorTeam.id
             )
         }
     }

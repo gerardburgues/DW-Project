@@ -4,9 +4,9 @@ import com.fasterxml.jackson.annotation.JsonProperty
 
 data class Stats(
     @JsonProperty(ID) val id: Long,
-    @JsonProperty(PLAYER) val player: Player,
+    @JsonProperty(PLAYER) val player: StatsPlayer,
     @JsonProperty(TEAM) val team: Team,
-    @JsonProperty(GAME) val game: Game,
+    @JsonProperty(GAME) val game: StatsGame,
     @JsonProperty(MINUTES) val minutes: String,
     @JsonProperty(POINTS) val points: Int,
     @JsonProperty(ASSISTS) val assists: Int,

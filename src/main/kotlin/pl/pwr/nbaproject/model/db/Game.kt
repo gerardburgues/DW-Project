@@ -16,18 +16,9 @@ data class Game(
     var postseason: Boolean,
     var homeTeamId: Long,
     var visitorTeamId: Long,
+    var winnerTeamId: Long,
 
     var homeTeam: Team? = null,
     var visitorTeam: Team? = null,
     var winnerTeam: Team? = null,
-) {
-    var winnerTeamId: Long = findWinnerId()
-
-    private fun findWinnerId(): Long {
-        return when {
-            homeTeamScore > visitorTeamScore -> homeTeamId
-            else -> visitorTeamId
-        }
-    }
-
-}
+)

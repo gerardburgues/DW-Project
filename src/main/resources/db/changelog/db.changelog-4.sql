@@ -105,6 +105,10 @@ ALTER TABLE games
     ALTER COLUMN winner_team_id SET NOT NULL,
     ADD FOREIGN KEY (winner_team_id) REFERENCES teams (id) MATCH FULL;
 
+ALTER TABLE stats
+    DROP COLUMN home_team_name,
+    DROP COLUMN visitor_team_name;
+
 CREATE OR REPLACE FUNCTION
     best_player()
     RETURNS TABLE
@@ -184,11 +188,11 @@ $$;
 CREATE OR REPLACE FUNCTION
     corr_height_player()
     RETURNS TABLE
-            (
-                player_id           BIGINT,
-                height_inches       INTEGER,
-                three_pointers_made DOUBLE PRECISION
-            )
+    (
+        player_id           BIGINT,
+        height_inches       INTEGER,
+        three_pointers_made DOUBLE PRECISION
+    )
     LANGUAGE plpgsql
 AS
 $$
@@ -233,17 +237,17 @@ $$;
 CREATE OR REPLACE FUNCTION
     turnover_stat()
     RETURNS TABLE
-            (
-                id        BIGINT,
-                turnovers DOUBLE PRECISION,
-                name      TEXT,
+    (
+        id        BIGINT,
+        turnovers DOUBLE PRECISION,
+        name      TEXT,
         points    DOUBLE PRECISION
     )
     LANGUAGE plpgsql
 AS
 $$
 DECLARE
-    sum_of_turnovers integer;
+    sum_of_turnovers INTEGER;
 BEGIN
 
     SELECT team_name, sum_of_turnovers = sum_of_turnovers + turnovers;
@@ -264,11 +268,11 @@ $$;
 CREATE OR REPLACE FUNCTION
     show_specific_players()
     RETURNS TABLE
-            (
-                game_id    BIGINT,
-                points     DOUBLE PRECISION,
-                assists    DOUBLE PRECISION,
-                season     INTEGER,
+    (
+        game_id            BIGINT,
+        points             DOUBLE PRECISION,
+        assists            DOUBLE PRECISION,
+        season             INTEGER,
         home_team_score    INTEGER,
         visitor_team_score INTEGER,
         home_team_name     TEXT,
@@ -315,11 +319,11 @@ $$;
 CREATE OR REPLACE FUNCTION
     show_best_3_pt()
     RETURNS TABLE
-            (
-                minutes                  TEXT,
-                three_pointer_percentage DOUBLE PRECISION,
-                firs_name                TEXT,
-                last_name                TEXT,
+    (
+        minutes                  TEXT,
+        three_pointer_percentage DOUBLE PRECISION,
+        firs_name                TEXT,
+        last_name                TEXT,
         team_name                TEXT,
         three_pointer_attempted  INTEGER,
         three_pointer_made       INTEGER
@@ -352,21 +356,21 @@ $$;
 CREATE OR REPLACE FUNCTION
     How_a_team_changes()
     RETURNS TABLE
-            (
-                season            INTEGER,
-                team_full_name    TEXT,
-                times_Win         INTEGER,
-                date_of_match     date,
-                game_id           BIGINT,
-                player_first_name TEXT,
-                player_last_name  TEXT,
-                most_points       INTEGER
+    (
+        season            INTEGER,
+        team_full_name    TEXT,
+        times_Win         INTEGER,
+        date_of_match     date,
+        game_id           BIGINT,
+        player_first_name TEXT,
+        player_last_name  TEXT,
+        most_points       INTEGER
     )
     LANGUAGE plpgsql
 AS
 $$
-Declare
-    times_Win integer;
+DECLARE
+    times_Win INTEGER;
 BEGIN
 
 
