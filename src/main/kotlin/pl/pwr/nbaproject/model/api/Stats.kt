@@ -7,7 +7,7 @@ data class Stats(
     @JsonProperty(PLAYER) val player: StatsPlayer,
     @JsonProperty(TEAM) val team: Team,
     @JsonProperty(GAME) val game: StatsGame,
-    @JsonProperty(MINUTES) val minutes: String,
+    @JsonProperty(MINUTES) val minutes: String?,
     @JsonProperty(POINTS) val points: Int,
     @JsonProperty(ASSISTS) val assists: Int,
     @JsonProperty(REBOUNDS) val rebounds: Int,

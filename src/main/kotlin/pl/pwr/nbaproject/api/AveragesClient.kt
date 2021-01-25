@@ -7,7 +7,7 @@ import pl.pwr.nbaproject.model.api.AveragesWrapper
 
 @Service
 class AveragesClient(
-    private val ballDontLieWebClient: WebClient
+    private val ballDontLieWebClient: WebClient,
 ) {
 
     suspend fun getAverages(playerIds: List<Long>, season: Int? = null): AveragesWrapper = ballDontLieWebClient.get()

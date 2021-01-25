@@ -7,7 +7,7 @@ import pl.pwr.nbaproject.model.api.PlayersWrapper
 
 @Service
 class PlayersClient(
-    private val ballDontLieWebClient: WebClient
+    private val ballDontLieWebClient: WebClient,
 ) {
 
     suspend fun getPlayers(page: Int = 0, perPage: Int = 100): PlayersWrapper = ballDontLieWebClient.get()

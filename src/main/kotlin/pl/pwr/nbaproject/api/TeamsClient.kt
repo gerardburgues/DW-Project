@@ -7,7 +7,7 @@ import pl.pwr.nbaproject.model.api.TeamsWrapper
 
 @Service
 class TeamsClient(
-    private val ballDontLieWebClient: WebClient
+    private val ballDontLieWebClient: WebClient,
 ) {
 
     suspend fun getTeams(page: Int = 0, perPage: Int = 30): TeamsWrapper = ballDontLieWebClient.get()
