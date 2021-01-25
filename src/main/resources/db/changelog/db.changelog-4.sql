@@ -100,6 +100,7 @@ UPDATE games
 SET winner_team_id = find_winner_id(id)
 WHERE TRUE;
 
+
 ALTER TABLE games
     ALTER COLUMN winner_team_id SET NOT NULL,
     ADD FOREIGN KEY (winner_team_id) REFERENCES teams (id) MATCH FULL;
@@ -115,7 +116,7 @@ CREATE OR REPLACE FUNCTION
         player_id       BIGINT,
         first_name      TEXT,
         last_name       TEXT,
-        player_position TEXT,
+        position        TEXT,
         points          DOUBLE PRECISION
     )
     LANGUAGE plpgsql
@@ -145,14 +146,14 @@ CREATE OR REPLACE FUNCTION
 AS
 $$
 BEGIN
+    return query
     SELECT s.team_id, t.city, SUM(s.points)
     FROM stats AS s
              JOIN teams t ON s.team_id = t.id
     ORDER BY s.points DESC
     LIMIT 10;
-    RETURN points;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 --Players who play more than 20 ‘(Average) for center position, sorted(percentage of freethrow)G
 create function center_player(s_minutes text, s_position text)
@@ -196,6 +197,7 @@ CREATE OR REPLACE FUNCTION
 AS
 $$
 BEGIN
+    return query
     SELECT a.player_id,
            p.height_inches,
            a.three_pointers_made
@@ -247,7 +249,7 @@ DECLARE
     sum_of_turnovers INTEGER;
 BEGIN
 
-    SELECT team_name, sum_of_turnovers = sum_of_turnovers + turnovers;
+--SELECT team_name, sum_of_turnovers = sum_of_turnovers + turnovers;
 
     -- for teamA Calculate for each player how many turnovers
     -- for teamB Calculate for each player how many turnovers
