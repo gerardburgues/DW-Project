@@ -34,16 +34,17 @@ CREATE OR REPLACE FUNCTION
     as
 $$
 BEGIN
-    SELECT DISTINCT ON (p.player_position) (p.first_name || p.last_name) AS "full_name",
+    return query
+    SELECT DISTINCT ON (p.position) (p.first_name || p.last_name) AS "full_name",
                                     a.player_id,
-                                    p.player_position,
+                                    p.position,
                                     a.points
     FROM averages AS a
              JOIN players AS p ON a.player_id = p.id
-    ORDER BY p.player_position, a.points DESC;
+    ORDER BY p.position, a.points DESC;
     RETURN points;
 END;
-$$ LANGUAGE plpgsql;
+$$ ;
 
 CREATE OR REPLACE FUNCTION
     top_cities()
@@ -144,7 +145,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Find a games in which the number of turnovers of the winner team is more than the turnovers of  looser team.  V
---this is INCORRECT!
 CREATE OR REPLACE FUNCTION
     turnover_stat()
     RETURNS table
@@ -157,14 +157,25 @@ CREATE OR REPLACE FUNCTION
     LANGUAGE plpgsql
     as
 $$
+declare sum_of_turnovers integer;
 BEGIN
-    SELECT g.id,
-           s.turnovers,
-           t.name,
-           s.points
+    SELECT t.name, sum(),
+    union all
+    select count(turnovers)
+    CASE
+    --for teamA for each player how many turnovers
+    select
+    --for teamB for each player how many turnovers
+    select sum(count(turnovers))
+        WHEN s.winner_team_id IS NOT NULL
+            and
+            THEN A
+        ELSE B
+        END
     FROM games AS g
              JOIN stats s ON g.id = s.game_id
-             JOIN teams t ON s.team_id = t.id;
+             JOIN teams t ON s.team_id = t.id
+    when ;
 END;
 $$ LANGUAGE plpgsql;
 
