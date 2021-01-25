@@ -11,9 +11,10 @@ import org.springframework.data.relational.core.query.Query.query
 import org.springframework.data.relational.core.query.isEqual
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.AveragesClient
-import pl.pwr.nbaproject.model.Queue
+import pl.pwr.nbaproject.model.Queue.AVERAGES
 import pl.pwr.nbaproject.model.amqp.SeasonAverageMessage
 import pl.pwr.nbaproject.model.api.AveragesWrapper
+import pl.pwr.nbaproject.model.db.AVERAGES_TABLE
 import pl.pwr.nbaproject.model.db.Average
 import reactor.rabbitmq.Receiver
 import reactor.rabbitmq.Sender
@@ -33,15 +34,17 @@ class AverageETLProcessor(
     r2dbcEntityTemplate,
 ) {
 
-    override val queue = Queue.AVERAGES
+    override val queue = AVERAGES
+
+    override val tableName: String = AVERAGES_TABLE
 
     override val messageClass: KClass<SeasonAverageMessage> = SeasonAverageMessage::class
 
-    override suspend fun extract(apiParams: SeasonAverageMessage): AveragesWrapper = with(apiParams) {
+    override suspend fun extract(message: SeasonAverageMessage): AveragesWrapper = with(message) {
         averagesClient.getAverages(playerIds, season)
     }
 
-    override suspend fun transform(data: AveragesWrapper): List<Average> = data.data.map { average ->
+    override suspend fun transform(data: AveragesWrapper): Pair<List<Average>, Boolean> = data.data.map { average ->
         with(average) {
             Average(
                 playerId = playerId,
@@ -68,10 +71,10 @@ class AverageETLProcessor(
                 freeThrowPercentage = freeThrowPercentage
             )
         }
-    }
+    } to false
 
-    override suspend fun load(data: List<Average>) {
-        data
+    override suspend fun load(data: Pair<List<Average>, Boolean>): Boolean {
+        data.first
             .filterNot { average ->
                 r2dbcEntityTemplate.select<Average>()
                     .matching(
@@ -85,6 +88,12 @@ class AverageETLProcessor(
             }.map { average ->
                 r2dbcEntityTemplate.insert<Average>().usingAndAwait(average)
             }
+
+        return data.second
+    }
+
+    override suspend fun feedQueue() {
+        //TODO
     }
 
 }

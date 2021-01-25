@@ -108,6 +108,18 @@ ALTER TABLE stats
     DROP COLUMN home_team_name,
     DROP COLUMN visitor_team_name;
 
+CREATE TABLE etl_status (
+    table_name TEXT,
+    done       BOOL
+);
+
+ALTER TABLE stats
+    ALTER COLUMN id SET NOT NULL,
+    ALTER COLUMN player_id SET NOT NULL,
+    ALTER COLUMN team_id SET NOT NULL,
+    ALTER COLUMN game_id SET NOT NULL
+;
+
 CREATE OR REPLACE FUNCTION
     best_player()
     RETURNS TABLE

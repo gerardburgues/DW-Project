@@ -5,11 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.reactor.mono
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.apache.logging.log4j.kotlin.Logging
 import org.springframework.beans.factory.InitializingBean
-import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
+import org.springframework.data.r2dbc.core.*
+import org.springframework.data.relational.core.query.Criteria.where
+import org.springframework.data.relational.core.query.Query.query
+import org.springframework.data.relational.core.query.isEqual
 import pl.pwr.nbaproject.model.Queue
+import pl.pwr.nbaproject.model.db.ETLStatus
 import reactor.kotlin.core.publisher.toMono
 import reactor.rabbitmq.*
 import kotlin.reflect.KClass
@@ -18,7 +23,7 @@ import kotlin.time.milliseconds
 import kotlin.time.seconds
 import kotlin.time.toJavaDuration
 
-abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
+abstract class AbstractETLProcessor<T1 : Any, T2 : Any, T3 : Any>(
     private val rabbitReceiver: Receiver,
     private val rabbitSender: Sender,
     private val objectMapper: ObjectMapper,
@@ -29,14 +34,16 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * Calls init() method after creation of the object by Spring Dependency Injection Container
      */
     override fun afterPropertiesSet() {
-        init()
+        runBlocking {
+            init()
+        }
     }
 
     /**
      * Base method used for performing ETL process. Should be called by subclasses in bean initialization method.
      * Overloaded version using abstract methods.
      */
-    open fun init() {
+    open suspend fun init() {
         this.init(queue, ::toMessage, ::extract, ::transform, ::load)
     }
 
@@ -50,13 +57,19 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * @param load function for inserting the data into the data warehouse
      */
     @OptIn(FlowPreview::class, ExperimentalTime::class)
-    private fun init(
+    private suspend fun init(
         queue: Queue,
         toMessage: suspend (AcknowledgableDelivery) -> T1?,
         extract: suspend (T1) -> T2,
-        transform: suspend (T2) -> List<T3>,
-        load: suspend (List<T3>) -> Unit,
+        transform: suspend (T2) -> Pair<List<T3>, Boolean>,
+        load: suspend (Pair<List<T3>, Boolean>) -> Boolean,
     ) {
+        val etlStatus = getEtlStatus()
+
+        if (etlStatus?.done != true) {
+            feedQueue()
+        }
+
         val consumeOptions = ConsumeOptions()
             .qos(60)
             .exceptionHandler(
@@ -72,6 +85,14 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
             .flatMap { message -> mono { extract(message) } }
             .flatMap { data -> mono { transform(data) } }
             .flatMap { data -> mono { load(data) } }
+            .flatMap { done ->
+                mono {
+                    if (done) {
+                        saveEtlStatus()
+                    }
+                }
+            }
+
             .subscribe()
     }
 
@@ -97,6 +118,19 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
         }
     }
 
+    private suspend fun getEtlStatus(): ETLStatus? {
+        return r2dbcEntityTemplate
+            .select<ETLStatus>()
+            .matching(query(where("table_name").isEqual(tableName)))
+            .awaitOneOrNull()
+    }
+
+    private suspend fun saveEtlStatus() {
+        r2dbcEntityTemplate
+            .insert<ETLStatus>()
+            .usingAndAwait(ETLStatus(tableName, true))
+    }
+
     protected suspend fun sendMessage(message: T1) {
         val body = withContext(IO) {
             objectMapper.writeValueAsBytes(message)
@@ -109,6 +143,8 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      */
     abstract val queue: Queue
 
+    abstract val tableName: String
+
     /**
      * Workaround for lack of support for dynamical type resolution on JVM
      */
@@ -118,10 +154,10 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * Method for data fetching from API.
      * **Important** Make sure this method **does not** perform any heavy calculations.
      *
-     * @param apiParams[T1] message from RabbitMQ as a properly typed object
+     * @param message[T1] message from RabbitMQ as a properly typed object
      * @return [T2] data fetched from NBA API in the acceptable form for [AbstractETLProcessor.transform]
      */
-    abstract suspend fun extract(apiParams: T1): T2
+    abstract suspend fun extract(message: T1): T2
 
     /**
      * Method for data transformation from the extraction step to the form acceptable for the data warehouse.
@@ -130,7 +166,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * @param data[T2] data from [AbstractETLProcessor.extract] step
      * @return [T3] transformed data in the acceptable form for [AbstractETLProcessor.load] step
      */
-    abstract suspend fun transform(data: T2): List<T3>
+    abstract suspend fun transform(data: T2): Pair<List<T3>, Boolean>
 
     /**
      * Method for inserting the data into the data warehouse.
@@ -139,6 +175,11 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * @param data[T3] transformed data from the [AbstractETLProcessor.transform] step
      * @return list of SQL queries
      */
-    abstract suspend fun load(data: List<T3>)
+    abstract suspend fun load(data: Pair<List<T3>, Boolean>): Boolean
+
+    open suspend fun feedQueue() {
+        val message = OutboundMessage("", queue.queueName, "{}".encodeToByteArray())
+        rabbitSender.send(message.toMono()).subscribe()
+    }
 
 }

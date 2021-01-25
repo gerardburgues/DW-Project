@@ -7,7 +7,7 @@ import pl.pwr.nbaproject.model.api.GamesWrapper
 
 @Service
 class GamesClient(
-    private val ballDontLieWebClient: WebClient
+    private val ballDontLieWebClient: WebClient,
 ) {
 
     suspend fun getGames(

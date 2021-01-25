@@ -4,7 +4,7 @@ import org.springframework.data.annotation.Id
 import org.springframework.data.relational.core.mapping.Table
 import java.time.LocalDate
 
-@Table("stats")
+@Table(STATS_TABLE)
 data class Stats(
     @Id var id: Long,
     var playerId: Long,
@@ -19,7 +19,7 @@ data class Stats(
     var date: LocalDate,
     var firstName: String,
     var lastName: String,
-    var minutes: String,
+    var minutes: String? = null,
     var points: Int? = null,
     var assists: Int? = null,
     var rebounds: Int? = null,
