@@ -6,55 +6,143 @@
 -- Find games in which the number of turnovers of the winner team is more than the turnovers of  looser team.  V
 -- Show the games and players in which players has at least 10 assists, 10 points and has won a match (player were in winning team)G
 -- Compare how many minutes and threepointers attempted per game have done the top 10 players with more than 38% three pointer. G
---ALTER STATEMENTS FOR ADDING NEW COLUMNS
-ALTER TABLE stats
-    add column home_team_score    integer NOT NULL,
-    add column visitor_team_score integer NOT NULL,
-    add column season             integer NOT NULL,
-    add column date_of_match      date    NOT NULL,
-    add column home_team_id       bigint  NOT NULL,
-    add column visitor_team_id    bigint  NOT NULL,
-    add column winner_team_id     bigint  NOT NULL;
+
+CREATE OR REPLACE FUNCTION find_winner_id(p_game_id BIGINT) RETURNS BIGINT AS
+$$
+DECLARE
+    result BIGINT;
+BEGIN
+    SELECT CASE
+               WHEN home_team_score > visitor_team_score THEN home_team_id
+               ELSE visitor_team_id
+               END
+    INTO result
+    FROM games
+    WHERE id = p_game_id;
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql;
+
+ALTER TABLE games
+    RENAME COLUMN time_till_start TO time;
+
+ALTER TABLE games
+    RENAME COLUMN date_of_match TO date;
 
 ALTER TABLE stats
-    add column home_team_name    text,
-    add column visitor_team_name text;
+    ADD COLUMN home_team_score    INTEGER,
+    ADD COLUMN visitor_team_score INTEGER,
+    ADD COLUMN season             INTEGER,
+    ADD COLUMN date               DATE,
+    ADD COLUMN first_name         TEXT,
+    ADD COLUMN last_name          TEXT;
+
+UPDATE stats
+SET home_team_score    = games.home_team_score,
+    visitor_team_score = games.visitor_team_score,
+    season             = games.season,
+    date               = games.date
+FROM games
+WHERE stats.game_id = games.id;
+
+UPDATE stats
+SET first_name = players.first_name,
+    last_name  = players.last_name
+FROM players
+WHERE stats.player_id = players.id;
+
+ALTER TABLE stats
+    ALTER COLUMN home_team_score SET NOT NULL,
+    ALTER COLUMN visitor_team_score SET NOT NULL,
+    ALTER COLUMN season SET NOT NULL,
+    ALTER COLUMN date SET NOT NULL,
+    ALTER COLUMN first_name SET NOT NULL,
+    ALTER COLUMN last_name SET NOT NULL;
+
+ALTER TABLE stats
+    ADD COLUMN home_team_id      BIGINT,
+    ADD COLUMN visitor_team_id   BIGINT,
+    ADD COLUMN winner_team_id    BIGINT,
+    ADD COLUMN home_team_name    TEXT,
+    ADD COLUMN visitor_team_name TEXT;
+
+UPDATE stats
+SET home_team_id    = games.home_team_id,
+    visitor_team_id = games.visitor_team_id,
+    winner_team_id  = games.winner_team_id
+FROM games
+WHERE stats.game_id = games.id;
+
+UPDATE stats
+SET home_team_name = name
+FROM teams
+WHERE stats.home_team_id = teams.id;
+
+UPDATE stats
+SET visitor_team_name = name
+FROM teams
+WHERE stats.visitor_team_id = teams.id;
+
+ALTER TABLE stats
+    ALTER COLUMN home_team_id SET NOT NULL,
+    ALTER COLUMN visitor_team_id SET NOT NULL,
+    ALTER COLUMN winner_team_id SET NOT NULL,
+    ALTER COLUMN home_team_name SET NOT NULL,
+    ALTER COLUMN visitor_team_name SET NOT NULL,
+    ADD FOREIGN KEY (visitor_team_id) REFERENCES teams (id) MATCH FULL,
+    ADD FOREIGN KEY (winner_team_id) REFERENCES teams (id) MATCH FULL,
+    ADD FOREIGN KEY (home_team_id) REFERENCES teams (id) MATCH FULL;
+
+ALTER TABLE games
+    ADD COLUMN winner_team_id BIGINT;
+
+UPDATE games
+SET winner_team_id = find_winner_id(id)
+WHERE TRUE;
+
+ALTER TABLE games
+    ALTER COLUMN winner_team_id SET NOT NULL,
+    ADD FOREIGN KEY (winner_team_id) REFERENCES teams (id) MATCH FULL;
+
+ALTER TABLE stats
+    DROP COLUMN home_team_name,
+    DROP COLUMN visitor_team_name;
 
 CREATE OR REPLACE FUNCTION
     best_player()
     RETURNS TABLE
     (
-        player_id BIGINT,
-        first_name TEXT,
-        last_name TEXT,
+        player_id       BIGINT,
+        first_name      TEXT,
+        last_name       TEXT,
         player_position TEXT,
-        points DOUBLE PRECISION
+        points          DOUBLE PRECISION
     )
-    language plpgsql
-    as
+    LANGUAGE plpgsql
+AS
 $$
 BEGIN
     return query
     SELECT DISTINCT ON (p.position) (p.first_name || p.last_name) AS "full_name",
-                                    a.player_id,
-                                    p.position,
-                                    a.points
-    FROM averages AS a
-             JOIN players AS p ON a.player_id = p.id
-    ORDER BY p.position, a.points DESC;
-    RETURN points;
+                                        a.player_id,
+                                        p.position,
+                                        a.points
+        FROM averages AS a
+                 JOIN players AS p ON a.player_id = p.id
+        ORDER BY p.position, a.points DESC;
 END;
-$$ ;
+$$;
 
 CREATE OR REPLACE FUNCTION
     top_cities()
-    RETURNS table (
-        team_id BIGINT,
-        city TEXT,
-        points INTEGER
-                  )
+    RETURNS TABLE
+            (
+                team_id BIGINT,
+                city    TEXT,
+                points  INTEGER
+            )
     LANGUAGE plpgsql
-    as
+AS
 $$
 BEGIN
     SELECT s.team_id, t.city, SUM(s.points)
@@ -67,21 +155,20 @@ END;
 $$ LANGUAGE plpgsql;
 
 --Players who play more than 20 ‘(Average) for center position, sorted(percentage of freethrow)G
-CREATE OR REPLACE FUNCTION
-    center_player()
-    RETURNS table
+create function center_player(s_minutes text, s_position text)
+    returns TABLE
             (
                 minutes               text,
                 first_name            text,
                 last_name             text,
-                position              text,
+                v_position            text,
                 free_throw_percentage double precision
             )
     language plpgsql
 as
 $$
 BEGIN
-    return query
+    RETURN QUERY
         SELECT averages.minutes,
                p.first_name,
                p.last_name,
@@ -89,24 +176,24 @@ BEGIN
                averages.free_throw_percentage
         FROM averages
                  JOIN players p ON p.id = averages.player_id
-        WHERE averages.minutes < ('20:00')
-          AND position = 'C'
+        WHERE averages.minutes < (s_minutes)
+          AND p.position = s_position
         ORDER BY averages.free_throw_percentage;
 
-END;
-$$ LANGUAGE plpgsql;
+END
+$$;
 
 -- Correlation between height of player and how many 3-pointers he made V
 CREATE OR REPLACE FUNCTION
     corr_height_player()
-    RETURNS table
+    RETURNS TABLE
     (
-        player_id BIGINT,
-        height_inches INTEGER,
+        player_id           BIGINT,
+        height_inches       INTEGER,
         three_pointers_made DOUBLE PRECISION
     )
     LANGUAGE plpgsql
-    as
+AS
 $$
 BEGIN
     SELECT a.player_id,
@@ -119,9 +206,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Sorting by division show player name  with more than 15 points and 7  average assist G
-CREATE OR REPLACE FUNCTION
-    sort_by_division()
-    RETURNS table
+create function sort_by_division(s_points integer, s_assists integer)
+    returns TABLE
             (
                 points     double precision,
                 assists    double precision,
@@ -133,68 +219,63 @@ CREATE OR REPLACE FUNCTION
 as
 $$
 BEGIN
-    return query
+    RETURN QUERY
         SELECT averages.points, averages.assists, p.first_name, p.last_name, t.division
         FROM averages
                  JOIN players p ON averages.player_id = p.id
                  JOIN teams t ON p.team_id = t.id
-        WHERE averages.points >= (15)
-          AND averages.assists >= (7)
+        WHERE averages.points >= (s_points)
+          AND averages.assists >= (s_assists)
         ORDER BY t.division;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Find a games in which the number of turnovers of the winner team is more than the turnovers of  looser team.  V
 CREATE OR REPLACE FUNCTION
     turnover_stat()
-    RETURNS table
+    RETURNS TABLE
     (
-        id BIGINT,
+        id        BIGINT,
         turnovers DOUBLE PRECISION,
-        name TEXT,
-        points DOUBLE PRECISION
+        name      TEXT,
+        points    DOUBLE PRECISION
     )
     LANGUAGE plpgsql
-    as
+AS
 $$
-declare sum_of_turnovers integer;
+DECLARE
+    sum_of_turnovers INTEGER;
 BEGIN
-    SELECT t.name, sum(),
-    union all
-    select count(turnovers)
-    CASE
-    --for teamA for each player how many turnovers
-    select
-    --for teamB for each player how many turnovers
-    select sum(count(turnovers))
-        WHEN s.winner_team_id IS NOT NULL
-            and
-            THEN A
-        ELSE B
-        END
-    FROM games AS g
-             JOIN stats s ON g.id = s.game_id
-             JOIN teams t ON s.team_id = t.id
-    when ;
+
+    SELECT team_name, sum_of_turnovers = sum_of_turnovers + turnovers;
+
+    -- for teamA Calculate for each player how many turnovers
+    -- for teamB Calculate for each player how many turnovers
+    -- if teamA turnovers > teamB turnovers && teamA won
+    -- Add teamA and numbers of turnovers
+    -- if teamB turnovers > teamA turnovers && teamB won
+    --Add teamB and number of turnovers
+
+    -- from stats
+
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Show the games and players in which players has at least 10 assists, 10 points and has won a match (player were in winning team)G
-CREATE OR REPLACE FUNCTION
-    show_specific_players()
-    RETURNS table
+create function show_specific_players(s_points integer, s_assits integer)
+    returns TABLE
             (
-                game_id            bigint,
-                points             double precision,
-                assists            double precision,
-                season             integer,
-                home_team_score    integer,
-                visitor_team_score integer,
-                home_team_name     text,
-                visitor_team_name  text,
-                winner_team_id     bigint,
-                home_team_id       bigint,
-                visitor_team_id    bigint
+                v_game_id            bigint,
+                v_points             integer,
+                v_assists            integer,
+                v_season             integer,
+                v_home_team_score    integer,
+                v_visitor_team_score integer,
+                v_home_team_name     text,
+                v_visitor_team_name  text,
+                v_winner_team_id     bigint,
+                v_home_team_id       bigint,
+                v_visitor_team_id    bigint
             )
     language plpgsql
 as
@@ -204,7 +285,7 @@ DECLARE
     v_winner BOOL; --1 has won the match, 0 hasn't won the match
 
 BEGIN
-    return query
+    RETURN QUERY
         SELECT game_id,
                points,
                assists,
@@ -217,24 +298,22 @@ BEGIN
                home_team_id,
                visitor_team_id,
                CASE
-                   WHEN team_id == winner_team_id
-                       THEN v_winner = 1
+                   WHEN team_id = winner_team_id
+                       THEN v_winner := True
                    WHEN team_id != winner_team_id
-                       THEN v_winner = 0
+                       THEN v_winner := False
                    END v_winner
         FROM stats
-        WHERE points >= 10
-          AND assists >= 10
+        WHERE points >= s_points
+          AND assists >= s_assits
           AND v_winner = 1
         ORDER BY points;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Compare how many minutes and threepointers attempted per game have done the top 10 players with more than 38% three pointer average. G
-
-CREATE OR REPLACE FUNCTION
-    show_best_3_pt()
-    RETURNS table
+create function show_best_3_pt(a_percentage double precision)
+    returns TABLE
             (
                 minutes                  text,
                 three_pointer_percentage double precision,
@@ -248,7 +327,7 @@ CREATE OR REPLACE FUNCTION
 as
 $$
 BEGIN
-    return query
+    RETURN QUERY
         SELECT averages.minutes,
                averages.three_pointer_percentage,
                p.first_name,
@@ -259,36 +338,39 @@ BEGIN
         FROM averages
                  JOIN players p ON averages.player_id = p.id
                  JOIN teams t ON p.team_id = t.id
-             JOIN stats s ON p.id = s.player_id
-    WHERE averages.three_pointer_percentage >= 38
-    ORDER BY averages.three_pointer_percentage
-    LIMIT 10;
+                 JOIN stats s ON p.id = s.player_id
+        WHERE averages.three_pointer_percentage >= a_percentage
+        ORDER BY averages.three_pointer_percentage
+        LIMIT 10;
 
 
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- How many times a team win in the last month of regular season March and the best scorer for each game
 CREATE OR REPLACE FUNCTION
-    How_a_team_changes(times_Win integer)
-    returns table
-            (
-                season            integer,
-                team_full_name    text,
-                times_Win         integer,
-                date_of_match     date,
-                game_id           bigint,
-                player_first_name text,
-                player_last_name  text,
-                most_points       integer
-            )
-    language plpgsql
-as
+    How_a_team_changes()
+    RETURNS TABLE
+    (
+        season            INTEGER,
+        team_full_name    TEXT,
+        times_Win         INTEGER,
+        date_of_match     date,
+        game_id           BIGINT,
+        player_first_name TEXT,
+        player_last_name  TEXT,
+        most_points       INTEGER
+    )
+    LANGUAGE plpgsql
+AS
 $$
+DECLARE
+    times_Win INTEGER;
 BEGIN
 
-    Return query
-        Select season,
+
+    RETURN QUERY
+        SELECT season,
                date_of_match,
                game_id,
                points,
@@ -299,11 +381,10 @@ BEGIN
                        THEN times_Win = times_Win + 1
                    END times_Win
 
-        from stats
-                 join players p on p.id = stats.player_id
-        where date_of_match >= '2015-03-01'
+        FROM stats
+                 JOIN players p ON p.id = stats.player_id
+        WHERE date_of_match >= '2015-03-01'
           AND date_of_match <= '2015-04-01'
-          and points = (select max(points) from stats)
-        order by times_Win;
-end;
+          AND points = (SELECT MAX(points) FROM stats);
+END;
 $$

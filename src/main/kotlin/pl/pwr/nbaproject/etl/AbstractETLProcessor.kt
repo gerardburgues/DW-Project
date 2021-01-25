@@ -2,26 +2,27 @@ package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.r2dbc.spi.Result
-import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.reactive.asFlow
-import kotlinx.coroutines.reactive.awaitSingle
+import kotlinx.coroutines.reactor.mono
+import kotlinx.coroutines.withContext
 import org.apache.logging.log4j.kotlin.Logging
 import org.springframework.beans.factory.InitializingBean
-import org.springframework.r2dbc.core.DatabaseClient
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import pl.pwr.nbaproject.model.Queue
-import reactor.rabbitmq.AcknowledgableDelivery
-import reactor.rabbitmq.Receiver
+import reactor.kotlin.core.publisher.toMono
+import reactor.rabbitmq.*
 import kotlin.reflect.KClass
+import kotlin.time.ExperimentalTime
+import kotlin.time.milliseconds
+import kotlin.time.seconds
+import kotlin.time.toJavaDuration
 
 abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
     private val rabbitReceiver: Receiver,
+    private val rabbitSender: Sender,
     private val objectMapper: ObjectMapper,
-    private val databaseClient: DatabaseClient,
+    protected val r2dbcEntityTemplate: R2dbcEntityTemplate,
 ) : Logging, InitializingBean {
 
     /**
@@ -36,7 +37,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * Overloaded version using abstract methods.
      */
     open fun init() {
-        this.init(queue, ::extract, ::transform, ::load)
+        this.init(queue, ::toMessage, ::extract, ::transform, ::load)
     }
 
     /**
@@ -48,33 +49,47 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * @param transform function for data transformation from the extraction step to the form acceptable for the data warehouse
      * @param load function for inserting the data into the data warehouse
      */
-    @OptIn(FlowPreview::class)
+    @OptIn(FlowPreview::class, ExperimentalTime::class)
     private fun init(
         queue: Queue,
+        toMessage: suspend (AcknowledgableDelivery) -> T1?,
         extract: suspend (T1) -> T2,
-        transform: suspend (T2) -> T3,
-        load: suspend (T3) -> List<String>,
+        transform: suspend (T2) -> List<T3>,
+        load: suspend (List<T3>) -> Unit,
     ) {
-        rabbitReceiver.consumeManualAck(queue.queueName).asFlow()
-            .mapNotNull(::toMessage)
-            .flowOn(IO)
-            .map(extract)
-            .map(transform)
-            .flowOn(Default)
-            .map(load)
-            .flatMapMerge(DEFAULT_CONCURRENCY, ::executeQueries)
-            .launchIn(GlobalScope)
+        val consumeOptions = ConsumeOptions()
+            .qos(60)
+            .exceptionHandler(
+                ExceptionHandlers.RetryAcknowledgmentExceptionHandler(
+                    20.seconds.toJavaDuration(),
+                    500.milliseconds.toJavaDuration(),
+                    ExceptionHandlers.CONNECTION_RECOVERY_PREDICATE
+                )
+            )
+
+        rabbitReceiver.consumeManualAck(queue.queueName, consumeOptions)
+            .flatMap { delivery -> mono { toMessage(delivery) } }
+            .flatMap { message -> mono { extract(message) } }
+            .flatMap { data -> mono { transform(data) } }
+            .flatMap { data -> mono { load(data) } }
+            .subscribe()
     }
 
-    private fun toMessage(delivery: AcknowledgableDelivery): T1? {
+    /**
+     * Jackson ObjectMapper.readValue is a blocking API, I think that this should work fine...
+     */
+    private suspend fun toMessage(delivery: AcknowledgableDelivery): T1? {
         return try {
             logger.debug {
                 "Message: ${delivery.body.decodeToString()}"
             }
 
-            val obj = objectMapper.readValue(delivery.body, messageClass.java)
+            val mappedMessage = withContext(IO) {
+                objectMapper.readValue(delivery.body, messageClass.java)
+            }
+
             delivery.ack()
-            obj
+            mappedMessage
         } catch (e: JsonProcessingException) {
             logger.error(e)
             delivery.nack(false)
@@ -82,10 +97,11 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
         }
     }
 
-    private suspend fun executeQueries(queries: List<String>): Flow<Result> {
-        val batch = databaseClient.connectionFactory.create().awaitSingle().createBatch()
-        queries.forEach { query -> batch.add(query) }
-        return batch.execute().asFlow()
+    protected suspend fun sendMessage(message: T1) {
+        val body = withContext(IO) {
+            objectMapper.writeValueAsBytes(message)
+        }
+        rabbitSender.send(OutboundMessage("", queue.queueName, body).toMono()).subscribe()
     }
 
     /**
@@ -114,7 +130,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * @param data[T2] data from [AbstractETLProcessor.extract] step
      * @return [T3] transformed data in the acceptable form for [AbstractETLProcessor.load] step
      */
-    abstract suspend fun transform(data: T2): T3
+    abstract suspend fun transform(data: T2): List<T3>
 
     /**
      * Method for inserting the data into the data warehouse.
@@ -123,6 +139,6 @@ abstract class AbstractETLProcessor<T1 : Any, T2, T3>(
      * @param data[T3] transformed data from the [AbstractETLProcessor.transform] step
      * @return list of SQL queries
      */
-    abstract suspend fun load(data: T3): List<String>
+    abstract suspend fun load(data: List<T3>)
 
 }
