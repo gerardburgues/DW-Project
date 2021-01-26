@@ -284,7 +284,9 @@ as
 $$
 DECLARE
     -- does not have conflict with parameters
-    v_winner BOOL; --1 has won the match, 0 hasn't won the match
+    v_winner          BOOL; --1 has won the match, 0 hasn't won the match
+    home_team_name    text;
+    visitor_team_name text;
 
 BEGIN
     RETURN QUERY
@@ -300,19 +302,22 @@ BEGIN
                home_team_id,
                visitor_team_id,
                CASE
-                   WHEN team_id = winner_team_id
-                       THEN v_winner := True
-                   WHEN team_id != winner_team_id
-                       THEN v_winner := False
-                   END v_winner
+
+                   when home_team_id == t.id
+                       THEN home_team_name = t.name
+                   when visitor_team_id == t.id
+                       THEN visitor_team_name == t.name
+                   END
         FROM stats
+                 JOIN teams t on stats.team_id = t.id
         WHERE points >= s_points
           AND assists >= s_assits
-          AND v_winner = 1
+          AND winner_team_id = team_id
+
+
         ORDER BY points;
 END;
 $$;
-
 -- Compare how many minutes and threepointers attempted per game have done the top 10 players with more than 38% three pointer average. G
 create function show_best_3_pt(a_percentage double precision)
     returns TABLE
