@@ -100,6 +100,7 @@ UPDATE games
 SET winner_team_id = find_winner_id(id)
 WHERE TRUE;
 
+
 ALTER TABLE games
     ALTER COLUMN winner_team_id SET NOT NULL,
     ADD FOREIGN KEY (winner_team_id) REFERENCES teams (id) MATCH FULL;
@@ -108,6 +109,18 @@ ALTER TABLE stats
     DROP COLUMN home_team_name,
     DROP COLUMN visitor_team_name;
 
+CREATE TABLE etl_status (
+    table_name TEXT,
+    done       BOOL
+);
+
+ALTER TABLE stats
+    ALTER COLUMN id SET NOT NULL,
+    ALTER COLUMN player_id SET NOT NULL,
+    ALTER COLUMN team_id SET NOT NULL,
+    ALTER COLUMN game_id SET NOT NULL
+;
+
 CREATE OR REPLACE FUNCTION
     best_player()
     RETURNS TABLE
@@ -115,7 +128,7 @@ CREATE OR REPLACE FUNCTION
         player_id       BIGINT,
         first_name      TEXT,
         last_name       TEXT,
-        player_position TEXT,
+        position        TEXT,
         points          DOUBLE PRECISION
     )
     LANGUAGE plpgsql
@@ -123,14 +136,13 @@ AS
 $$
 BEGIN
     return query
-        SELECT DISTINCT ON (p.position) (p.first_name || p.last_name) AS "full_name",
+    SELECT DISTINCT ON (p.position) (p.first_name || p.last_name) AS "full_name",
                                         a.player_id,
                                         p.position,
                                         a.points
         FROM averages AS a
                  JOIN players AS p ON a.player_id = p.id
         ORDER BY p.position, a.points DESC;
-
 END;
 $$;
 
@@ -146,14 +158,14 @@ CREATE OR REPLACE FUNCTION
 AS
 $$
 BEGIN
+    return query
     SELECT s.team_id, t.city, SUM(s.points)
     FROM stats AS s
              JOIN teams t ON s.team_id = t.id
     ORDER BY s.points DESC
     LIMIT 10;
-    RETURN points;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 --Players who play more than 20 ‘(Average) for center position, sorted(percentage of freethrow)G
 create function center_player(s_minutes text, s_position text)
@@ -197,6 +209,7 @@ CREATE OR REPLACE FUNCTION
 AS
 $$
 BEGIN
+    return query
     SELECT a.player_id,
            p.height_inches,
            a.three_pointers_made
@@ -232,7 +245,6 @@ END;
 $$;
 
 -- Find a games in which the number of turnovers of the winner team is more than the turnovers of  looser team.  V
---this is INCORRECT!
 CREATE OR REPLACE FUNCTION
     turnover_stat()
     RETURNS TABLE
@@ -249,7 +261,7 @@ DECLARE
     sum_of_turnovers INTEGER;
 BEGIN
 
-    SELECT team_name, sum_of_turnovers = sum_of_turnovers + turnovers;
+--SELECT team_name, sum_of_turnovers = sum_of_turnovers + turnovers;
 
     -- for teamA Calculate for each player how many turnovers
     -- for teamB Calculate for each player how many turnovers

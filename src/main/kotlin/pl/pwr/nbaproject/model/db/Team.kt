@@ -3,7 +3,7 @@ package pl.pwr.nbaproject.model.db
 import org.springframework.data.annotation.Id
 import org.springframework.data.relational.core.mapping.Table
 
-@Table("teams")
+@Table(TEAMS_TABLE)
 data class Team(
     @Id var id: Long,
     var abbreviation: String,

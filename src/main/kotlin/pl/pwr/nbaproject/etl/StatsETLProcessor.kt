@@ -12,8 +12,10 @@ import org.springframework.data.relational.core.query.isEqual
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.StatsClient
 import pl.pwr.nbaproject.model.Queue
+import pl.pwr.nbaproject.model.Queue.STATS
 import pl.pwr.nbaproject.model.amqp.StatsMessage
 import pl.pwr.nbaproject.model.api.StatsWrapper
+import pl.pwr.nbaproject.model.db.STATS_TABLE
 import pl.pwr.nbaproject.model.db.Stats
 import reactor.rabbitmq.Receiver
 import reactor.rabbitmq.Sender
@@ -33,11 +35,13 @@ class StatsETLProcessor(
     r2dbcEntityTemplate,
 ) {
 
-    override val queue: Queue = Queue.STATS
+    override val queue: Queue = STATS
+
+    override val tableName: String = STATS_TABLE
 
     override val messageClass: KClass<StatsMessage> = StatsMessage::class
 
-    override suspend fun extract(apiParams: StatsMessage): StatsWrapper = with(apiParams) {
+    override suspend fun extract(message: StatsMessage): StatsWrapper = with(message) {
         statsClient.getStats(
             seasons,
             teamIds,
@@ -48,9 +52,11 @@ class StatsETLProcessor(
         )
     }
 
-    override suspend fun transform(data: StatsWrapper): List<Stats> {
-        if (data.meta.nextPage != null) {
-            sendMessage(StatsMessage(page = data.meta.nextPage))
+    override suspend fun transform(data: StatsWrapper): Pair<List<Stats>, Boolean> {
+        if (data.meta.currentPage == 1) {
+            for (i in 1 until data.meta.totalPages) {
+                sendMessage(StatsMessage(page = i + 1))
+            }
         }
 
         return data.data.map { stats ->
@@ -90,11 +96,11 @@ class StatsETLProcessor(
                     freeThrowPercentage = freeThrowPercentage,
                 )
             }
-        }
+        } to (data.meta.currentPage == data.meta.totalPages)
     }
 
-    override suspend fun load(data: List<Stats>) {
-        data
+    override suspend fun load(data: Pair<List<Stats>, Boolean>): Boolean {
+        data.first
             .filterNot { stats ->
                 r2dbcEntityTemplate.select<Stats>()
                     .matching(query(where("id").isEqual(stats.id)))
@@ -104,6 +110,8 @@ class StatsETLProcessor(
             .map { stats ->
                 r2dbcEntityTemplate.insert<Stats>().usingAndAwait(stats)
             }
+
+        return data.second
     }
 
 }

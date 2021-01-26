@@ -16,6 +16,7 @@ import pl.pwr.nbaproject.model.amqp.PageMessage
 import pl.pwr.nbaproject.model.api.TeamsWrapper
 import pl.pwr.nbaproject.model.db.Conference
 import pl.pwr.nbaproject.model.db.Division
+import pl.pwr.nbaproject.model.db.TEAMS_TABLE
 import pl.pwr.nbaproject.model.db.Team
 import reactor.rabbitmq.Receiver
 import reactor.rabbitmq.Sender
@@ -37,15 +38,19 @@ class TeamsETLProcessor(
 
     override val queue = TEAMS
 
+    override val tableName: String = TEAMS_TABLE
+
     override val messageClass: KClass<PageMessage> = PageMessage::class
 
-    override suspend fun extract(apiParams: PageMessage): TeamsWrapper = with(apiParams) {
+    override suspend fun extract(message: PageMessage): TeamsWrapper = with(message) {
         teamsClient.getTeams(page, perPage)
     }
 
-    override suspend fun transform(data: TeamsWrapper): List<Team> {
-        if (data.meta.nextPage != null) {
-            sendMessage(PageMessage(page = data.meta.nextPage))
+    override suspend fun transform(data: TeamsWrapper): Pair<List<Team>, Boolean> {
+        if (data.meta.currentPage == 1) {
+            for (i in 1 until data.meta.totalPages) {
+                sendMessage(PageMessage(page = i + 1))
+            }
         }
 
         return data.data.map { team ->
@@ -60,11 +65,11 @@ class TeamsETLProcessor(
                     name = name
                 )
             }
-        }
+        } to (data.meta.currentPage == data.meta.totalPages)
     }
 
-    override suspend fun load(data: List<Team>) {
-        data
+    override suspend fun load(data: Pair<List<Team>, Boolean>): Boolean {
+        data.first
             .filterNot { team ->
                 r2dbcEntityTemplate.select<Team>()
                     .matching(query(where("id").isEqual(team.id)))
@@ -74,6 +79,8 @@ class TeamsETLProcessor(
             .map { team ->
                 r2dbcEntityTemplate.insert<Team>().usingAndAwait(team)
             }
+
+        return data.second
     }
 
 }

@@ -5,6 +5,6 @@ data class StatsMessage(
     val teamIds: List<Int> = emptyList(),
     val gameIds: List<Int> = emptyList(),
     val postSeason: Boolean? = null,
-    val page: Int = 0,
+    val page: Int = 1,
     val perPage: Int = 100,
 )

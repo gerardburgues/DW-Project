@@ -11,9 +11,10 @@ import org.springframework.data.relational.core.query.Query.query
 import org.springframework.data.relational.core.query.isEqual
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.PlayersClient
-import pl.pwr.nbaproject.model.Queue
+import pl.pwr.nbaproject.model.Queue.PLAYERS
 import pl.pwr.nbaproject.model.amqp.PageMessage
 import pl.pwr.nbaproject.model.api.PlayersWrapper
+import pl.pwr.nbaproject.model.db.PLAYERS_TABLE
 import pl.pwr.nbaproject.model.db.Player
 import reactor.rabbitmq.Receiver
 import reactor.rabbitmq.Sender
@@ -33,17 +34,21 @@ class PlayersETLProcessor(
     r2dbcEntityTemplate,
 ) {
 
-    override val queue = Queue.PLAYERS
+    override val queue = PLAYERS
+
+    override val tableName: String = PLAYERS_TABLE
 
     override val messageClass: KClass<PageMessage> = PageMessage::class
 
-    override suspend fun extract(apiParams: PageMessage): PlayersWrapper = with(apiParams) {
+    override suspend fun extract(message: PageMessage): PlayersWrapper = with(message) {
         playersClient.getPlayers(page, perPage)
     }
 
-    override suspend fun transform(data: PlayersWrapper): List<Player> {
-        if (data.meta.nextPage != null) {
-            sendMessage(PageMessage(data.meta.nextPage))
+    override suspend fun transform(data: PlayersWrapper): Pair<List<Player>, Boolean> {
+        if (data.meta.currentPage == 1) {
+            for (i in 1 until data.meta.totalPages) {
+                sendMessage(PageMessage(page = i + 1))
+            }
         }
 
         return data.data.map { player ->
@@ -59,11 +64,11 @@ class PlayersETLProcessor(
                     teamId = team.id
                 )
             }
-        }
+        } to (data.meta.currentPage == data.meta.totalPages)
     }
 
-    override suspend fun load(data: List<Player>) {
-        data
+    override suspend fun load(data: Pair<List<Player>, Boolean>): Boolean {
+        data.first
             .filterNot { player ->
                 r2dbcEntityTemplate.select<Player>()
                     .matching(query(where("id").isEqual(player.id)))
@@ -73,6 +78,8 @@ class PlayersETLProcessor(
             .map { player ->
                 r2dbcEntityTemplate.insert<Player>().usingAndAwait(player)
             }
+
+        return data.second
     }
 
 }

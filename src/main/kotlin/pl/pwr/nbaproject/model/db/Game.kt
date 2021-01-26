@@ -4,7 +4,7 @@ import org.springframework.data.annotation.Id
 import org.springframework.data.relational.core.mapping.Table
 import java.time.LocalDate
 
-@Table("games")
+@Table(GAMES_TABLE)
 data class Game(
     @Id var id: Long,
     var date: LocalDate,

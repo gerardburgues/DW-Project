@@ -7,7 +7,7 @@ import pl.pwr.nbaproject.model.api.StatsWrapper
 
 @Service
 class StatsClient(
-    private val ballDontLieWebClient: WebClient
+    private val ballDontLieWebClient: WebClient,
 ) {
 
     suspend fun getStats(
