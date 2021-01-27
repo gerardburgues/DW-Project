@@ -44,7 +44,7 @@ class QueriesRepository(
     }
 
     fun bestPlayer(playerId: Long, firstName: String, lastName: String, position: String, points: Double): Flow<BPlayer> {
-        return databaseClient.sql("SELECT best_player(:p_position)")
+        return databaseClient.sql("SELECT best_player()")
             .bind("playerId", playerId)
             .bind("firstName", firstName)
             .bind("lastName", lastName)
@@ -64,7 +64,7 @@ class QueriesRepository(
 }
 
     fun topCities(teamId: Long, city: String, points: Double): Flow<Cities> {
-        return databaseClient.sql("SELECT top_cities(:teamId, :city, :points)")
+        return databaseClient.sql("SELECT top_cities()")
             .bind("teamId", teamId)
             .bind("City", city)
             .bind("points", points)
@@ -80,7 +80,7 @@ class QueriesRepository(
     }
 
     fun corrHeight(playerId: Long, heightInches: Int, threePointersMade: Double): Flow<Height> {
-        return databaseClient.sql("SELECT corr_height_player(:playerId, :heightInches, :threePointersMades)")
+        return databaseClient.sql("SELECT corr_height_player()")
             .bind("playerId", playerId)
             .bind("heightInches", heightInches)
             .bind("threePointersMade", threePointersMade)
