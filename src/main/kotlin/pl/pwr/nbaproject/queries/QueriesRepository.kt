@@ -44,9 +44,10 @@ class QueriesRepository(
     }
 
     fun bestPlayer(playerId: Long, firstName: String, lastName: String, position: String, points: Double): Flow<BPlayer> {
-        return databaseClient.sql("SELECT best_player(:playerId, :firstName, :position, :points)")
+        return databaseClient.sql("SELECT best_player(:p_position)")
             .bind("playerId", playerId)
             .bind("firstName", firstName)
+            .bind("lastName", lastName)
             .bind("position", position)
             .bind("points", points)
             .fetch()
