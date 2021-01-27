@@ -136,13 +136,13 @@ AS
 $$
 BEGIN
     return query
-    SELECT DISTINCT ON (p.position) (p.first_name || p.last_name) AS "full_name",
-                                        a.player_id,
+        SELECT DISTINCT ON (p.position) (p.first_name || ' ' || p.last_name) AS "full_name",
                                         p.position,
-                                        a.points
-        FROM averages AS a
-                 JOIN players AS p ON a.player_id = p.id
-        ORDER BY p.position, a.points DESC;
+                                        s.points
+        FROM stats AS s
+                 JOIN players AS p ON s.player_id = p.id
+        group by (p.first_name || ' ' || p.last_name), p.position, s.points
+        ORDER BY  p.position, s.points DESC;
 END;
 $$;
 
@@ -159,11 +159,12 @@ AS
 $$
 BEGIN
     return query
-    SELECT s.team_id, t.city, SUM(s.points)
-    FROM stats AS s
-             JOIN teams t ON s.team_id = t.id
-    ORDER BY s.points DESC
-    LIMIT 10;
+        SELECT s.team_id, t.city, SUM(s.points)
+        FROM stats AS s
+                 JOIN teams t ON s.team_id = t.id
+        group by s.team_id, s.points, t.city
+        ORDER BY s.points DESC
+        LIMIT 10;
 END;
 $$;
 
@@ -210,12 +211,15 @@ AS
 $$
 BEGIN
     return query
-    SELECT a.player_id,
-           p.height_inches,
-           a.three_pointers_made
-    FROM averages AS a
-             JOIN players AS p ON a.player_id = p.id
-    GROUP BY p.height_inches;
+        SELECT  p.first_name,
+                p.last_name,
+                p.height_inches,
+                s.three_pointers_made
+        FROM stats AS s
+                 JOIN players AS p ON s.player_id = p.id
+        where  p.height_inches >0
+        GROUP BY p.first_name,
+                 p.last_name,p.height_inches, s.player_id, p.height_inches, s.three_pointers_made;
 END;
 $$ LANGUAGE plpgsql;
 
