@@ -280,13 +280,15 @@ create function show_specific_players(s_points integer, s_assits integer)
     returns TABLE
             (
                 v_game_id            bigint,
+                first_name           text,
+                last_name            text,
                 v_points             integer,
                 v_assists            integer,
                 v_season             integer,
                 v_home_team_score    integer,
                 v_visitor_team_score integer,
-                v_home_team_name     text,
-                v_visitor_team_name  text,
+                home_team_name       text,
+                visitor_team_name    text,
                 v_winner_team_id     bigint,
                 v_home_team_id       bigint,
                 v_visitor_team_id    bigint
@@ -296,37 +298,33 @@ as
 $$
 DECLARE
     -- does not have conflict with parameters
-    v_winner          BOOL; --1 has won the match, 0 hasn't won the match
+
     home_team_name    text;
     visitor_team_name text;
 
 BEGIN
     RETURN QUERY
         SELECT game_id,
+               COALESCE(stats.first_name, '0'),
+               COALESCE(stats.last_name, '0'),
                points,
                assists,
-               season,
-               home_team_score,
-               visitor_team_score,
-               home_team_name,
-               visitor_team_name,
-               winner_team_id,
-               home_team_id,
-               visitor_team_id,
-               CASE
+               COALESCE(season, 0),
+               COALESCE(home_team_score, 0),
+               COALESCE(visitor_team_score, 0),
+               t1.name,
+               t2.name,
+               COALESCE(winner_team_id, 0000),
+               COALESCE(home_team_id, 0000),
+               COALESCE(visitor_team_id, 0000)
 
-                   when home_team_id == t.id
-                       THEN home_team_name = t.name
-                   when visitor_team_id == t.id
-                       THEN visitor_team_name == t.name
-                   END
+
         FROM stats
-                 JOIN teams t on stats.team_id = t.id
+                 join teams t1 on t1.id = stats.home_team_id
+                 join teams t2 on t2.id = stats.visitor_team_id
         WHERE points >= s_points
           AND assists >= s_assits
           AND winner_team_id = team_id
-
-
         ORDER BY points;
 END;
 $$;
@@ -366,44 +364,39 @@ BEGIN
 END;
 $$;
 
--- How many times a team win in the last month of regular season March and the best scorer for each game
-CREATE OR REPLACE FUNCTION
-    How_a_team_changes()
-    RETURNS TABLE
-    (
-        season            INTEGER,
-        team_full_name    TEXT,
-        times_Win         INTEGER,
-        date_of_match     date,
-        game_id           BIGINT,
-        player_first_name TEXT,
-        player_last_name  TEXT,
-        most_points       INTEGER
-    )
-    LANGUAGE plpgsql
-AS
+-- How many times a team win at home in the last month of regular season March and the players with more than 20 points per each game
+create function how_a_team_changes(date1 date, date2 date)
+    returns TABLE
+            (
+                team_full_name text,
+                date11         date,
+                date12         date,
+                number         bigint
+            )
+    language plpgsql
+as
 $$
 DECLARE
-    times_Win INTEGER;
+
 BEGIN
 
-
     RETURN QUERY
-        SELECT season,
-               date_of_match,
-               game_id,
-               points,
-               p.first_name,
-               p.last_name,
-               CASE
-                   WHEN stats.team_id == winner_team_id
-                       THEN times_Win = times_Win + 1
-                   END times_Win
+        SELECT t.name,
+               date1,
+               date2,
+               COUNT(*)
 
-        FROM stats
-                 JOIN players p ON p.id = stats.player_id
-        WHERE date_of_match >= '2015-03-01'
-          AND date_of_match <= '2015-04-01'
-          AND points = (SELECT MAX(points) FROM stats);
+        FROM games
+
+                 join stats s on games.id = s.game_id
+                 join teams t on t.id = s.home_team_id
+
+        WHERE games.date >= date1
+          AND games.date <= date2
+          AND games.home_team_id = games.winner_team_id
+
+        group by t.name, games.home_team_id, games.winner_team_id;
+
 END;
-$$
+$$;
+

@@ -1,8 +1,16 @@
 package pl.pwr.nbaproject.queries
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.r2dbc.core.awaitOne
+import org.springframework.r2dbc.core.flow
 import org.springframework.stereotype.Component
+import pl.pwr.nbaproject.model.db.functions.Best3Pt
+import pl.pwr.nbaproject.model.db.functions.CenterPlayer
+import pl.pwr.nbaproject.model.db.functions.SortDivision
+import pl.pwr.nbaproject.model.db.functions.SpecificPlayer
+import java.math.BigInteger
 
 @Component
 class QueriesRepository(
@@ -81,6 +89,22 @@ class QueriesRepository(
         val result = databaseClient.sql("SELECT show_specific_players(:s_points,:s_assists)")
             .bind("s_points", s_points)
             .bind("s_assits", s_assists)
+            .fetch()
+            .flow()
+            .map { row: Map<String, Any?> ->
+                SortDivision(
+                    row["points"] as Int,
+                    row["assists"] as Int,
+                    row["first_name"] as String,
+                    row["last_name"] as String,
+                    row["division"] as String,
+
+                    )
+            }
+
+        return result
+    }
+
 
     fun findAll(firstName: String, weightPounds: Int): Flow<Player> {
         return databaseClient.sql("SELECT * FROM players  WHERE first_name = :firstName and weight_pounds >= :weightPounds")
@@ -159,12 +183,4 @@ class QueriesRepository(
     }
 }
 
-            .flow()
-            .map { row: Map<String, Any?> ->
-                Height(
-                    row["player_id"] as Long,
-                    row["height_inches"] as Int,
-                    row["three_pointers_made"] as Double,
-                )
-            }
-    }
+
