@@ -79,16 +79,18 @@ class QueriesRepository(
             }
     }
 
-    fun corrHeight(playerId: Long, heightInches: Int, threePointersMade: Double): Flow<Height> {
+    fun corrHeight(firstName: String, lastName: String, heightInches: Int, threePointersMade: Double): Flow<Height> {
         return databaseClient.sql("SELECT corr_height_player()")
-            .bind("playerId", playerId)
+            .bind("firstName", firstName)
+            .bind("lastName", lastName)
             .bind("heightInches", heightInches)
             .bind("threePointersMade", threePointersMade)
             .fetch()
             .flow()
             .map { row: Map<String, Any?> ->
                 Height(
-                    row["player_id"] as Long,
+                    row["first_name"] as String
+                    row["last_name"] as String,
                     row["height_inches"] as Int,
                     row["three_pointers_made"] as Double,
                 )
