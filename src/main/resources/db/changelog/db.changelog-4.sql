@@ -189,9 +189,9 @@ BEGIN
                averages.free_throw_percentage
         FROM averages
                  JOIN players p ON p.id = averages.player_id
-        WHERE averages.minutes < (s_minutes)
+        WHERE averages.minutes > (s_minutes)
           AND p.position = s_position
-        ORDER BY averages.free_throw_percentage;
+        ORDER BY averages.minutes, averages.free_throw_percentage;
 
 END
 $$;
@@ -223,6 +223,7 @@ $$ LANGUAGE plpgsql;
 create function sort_by_division(s_points integer, s_assists integer)
     returns TABLE
             (
+                season     integer,
                 points     double precision,
                 assists    double precision,
                 first_name text,
@@ -234,9 +235,10 @@ as
 $$
 BEGIN
     RETURN QUERY
-        SELECT averages.points, averages.assists, p.first_name, p.last_name, t.division
+        SELECT averages.season, averages.points, averages.assists, p.first_name, p.last_name, t.division
         FROM averages
                  JOIN players p ON averages.player_id = p.id
+
                  JOIN teams t ON p.team_id = t.id
         WHERE averages.points >= (s_points)
           AND averages.assists >= (s_assists)
@@ -332,43 +334,47 @@ $$;
 create function show_best_3_pt(a_percentage double precision)
     returns TABLE
             (
+                season                   integer,
                 minutes                  text,
                 three_pointer_percentage double precision,
                 firs_name                text,
                 last_name                text,
                 team_name                text,
-                three_pointer_attempted  integer,
-                three_pointer_made       integer
+                three_pointer_attempted  double precision,
+                three_pointer_made       double precision
             )
     language plpgsql
 as
 $$
 BEGIN
     RETURN QUERY
-        SELECT averages.minutes,
+        SELECT averages.season,
+               averages.minutes,
                averages.three_pointer_percentage,
                p.first_name,
                p.last_name,
                t.name,
-               s.three_pointers_attempted,
-               s.three_pointers_made
+               averages.three_pointers_attempted,
+               averages.three_pointers_made
         FROM averages
                  JOIN players p ON averages.player_id = p.id
                  JOIN teams t ON p.team_id = t.id
-                 JOIN stats s ON p.id = s.player_id
+
         WHERE averages.three_pointer_percentage >= a_percentage
-        ORDER BY averages.three_pointer_percentage
-        LIMIT 10;
+        group by averages.season, p.first_name, averages.minutes, averages.three_pointer_percentage, p.last_name,
+                 t.name, averages.three_pointers_attempted, averages.three_pointers_made
+        ORDER BY averages.three_pointer_percentage;
 
 
 END;
 $$;
 
--- How many times a team win at home in the last month of regular season March and the players with more than 20 points per each game
+-- How many times a team win at home in the last month of regular season March and the players
 create function how_a_team_changes(date1 date, date2 date)
     returns TABLE
             (
                 team_full_name text,
+                season         integer,
                 date11         date,
                 date12         date,
                 number         bigint
@@ -382,6 +388,7 @@ BEGIN
 
     RETURN QUERY
         SELECT t.name,
+               games.season,
                date1,
                date2,
                COUNT(*)
@@ -389,14 +396,13 @@ BEGIN
         FROM games
 
                  join stats s on games.id = s.game_id
-                 join teams t on t.id = s.home_team_id
+                 join teams t on t.id = games.home_team_id
 
         WHERE games.date >= date1
           AND games.date <= date2
           AND games.home_team_id = games.winner_team_id
 
-        group by t.name, games.home_team_id, games.winner_team_id;
+        group by games.season, t.name, games.home_team_id, games.winner_team_id;
 
 END;
 $$;
-
