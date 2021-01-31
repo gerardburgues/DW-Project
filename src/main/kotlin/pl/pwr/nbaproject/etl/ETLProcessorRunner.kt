@@ -17,7 +17,7 @@ class ETLProcessorRunner(
     @ExperimentalTime
     override fun afterPropertiesSet() {
         val etlProcessors: Map<String, AbstractETLProcessor<*, *, *>> = applicationContext.getBeansOfType()
-        val processingStream: Flux<Unit> = Flux.merge(etlProcessors.values.map { it.process() })
+        val processingStream: Flux<Void> = Flux.concat(etlProcessors.values.map { it.process() })
 
         processingStream
             .zipWith(Flux.interval(1.seconds.toJavaDuration()))

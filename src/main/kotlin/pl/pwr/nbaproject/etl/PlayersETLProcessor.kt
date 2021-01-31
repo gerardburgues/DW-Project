@@ -1,16 +1,9 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.reactive.awaitSingle
+import org.reactivestreams.Publisher
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.data.r2dbc.core.insert
-import org.springframework.data.r2dbc.core.select
-import org.springframework.data.r2dbc.core.usingAndAwait
-import org.springframework.data.relational.core.query.Criteria.where
-import org.springframework.data.relational.core.query.Query.query
-import org.springframework.data.relational.core.query.isEqual
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.PlayersClient
 import pl.pwr.nbaproject.model.Queue.PLAYERS
@@ -18,6 +11,8 @@ import pl.pwr.nbaproject.model.amqp.PageMessage
 import pl.pwr.nbaproject.model.api.PlayersWrapper
 import pl.pwr.nbaproject.model.db.PLAYERS_TABLE
 import pl.pwr.nbaproject.model.db.Player
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
 import reactor.rabbitmq.Receiver
 import reactor.rabbitmq.Sender
 import kotlin.reflect.KClass
@@ -42,48 +37,48 @@ class PlayersETLProcessor(
 
     override val messageClass: KClass<PageMessage> = PageMessage::class
 
-    override suspend fun extract(message: PageMessage): PlayersWrapper = with(message) {
-        playersClient.getPlayers(page, perPage)
-    }
-
-    override suspend fun transform(data: PlayersWrapper): Pair<List<Player>, Boolean> {
-        if (data.meta.currentPage == 1) {
-            for (i in 1 until data.meta.totalPages) {
-                sendMessages(flowOf(PageMessage(page = i + 1)))
-            }
+    override fun extract(message: Mono<PageMessage>): Mono<PlayersWrapper> = message.flatMap {
+        with(it) {
+            playersClient.getPlayers(page, perPage)
         }
-
-        return data.data.map { player ->
-            with(player) {
-                Player(
-                    id = id,
-                    firstName = firstName,
-                    lastName = lastName,
-                    position = position,
-                    heightFeet = heightFeet,
-                    heightInches = heightInches,
-                    weightPounds = weightPounds,
-                    teamId = team.id
-                )
-            }
-        } to (data.meta.currentPage == data.meta.totalPages)
     }
 
-    override suspend fun load(data: Pair<List<Player>, Boolean>): Boolean {
-        data.first
-            .filterNot { player ->
-                r2dbcEntityTemplate.select<Player>()
-                    .matching(query(where("id").isEqual(player.id)))
-                    .exists()
-                    .awaitSingle()
+    override fun transform(data: Mono<PlayersWrapper>): Mono<Pair<List<Player>, Boolean>> {
+        return data.doOnNext { playersWrapper ->
+            if (playersWrapper.meta.currentPage == 1) {
+                Flux.fromIterable(1 until playersWrapper.meta.totalPages)
+                    .flatMap { page -> sendMessages(Mono.fromCallable { PageMessage(page = page + 1) }) }
+                    .subscribe()
             }
-            .map { player ->
-                r2dbcEntityTemplate.insert<Player>().usingAndAwait(player)
+        }.map { playersWrapper ->
+            val isLastPage = playersWrapper.meta.currentPage == playersWrapper.meta.totalPages
+            val players = playersWrapper.data.map { player ->
+                with(player) {
+                    Player(
+                        id = id,
+                        firstName = firstName,
+                        lastName = lastName,
+                        position = position,
+                        heightFeet = heightFeet,
+                        heightInches = heightInches,
+                        weightPounds = weightPounds,
+                        teamId = team.id
+                    )
+                }
             }
 
-        return data.second
+            players to isLastPage
+        }
     }
 
-    override suspend fun prepareInitialMessages(): Flow<PageMessage> = flowOf(PageMessage())
+    override fun load(data: Mono<Pair<List<Player>, Boolean>>): Mono<Boolean> = data.flatMap { pair ->
+        Flux.fromIterable(pair.first)
+            .flatMap { player ->
+                r2dbcEntityTemplate.insert<Player>().using(player)
+            }
+            .then(Mono.just(pair.second))
+    }
+
+    override fun prepareInitialMessages(): Publisher<PageMessage> = Mono.fromCallable { PageMessage() }
 
 }

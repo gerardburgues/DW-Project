@@ -53,7 +53,6 @@ dependencies {
     implementation("io.projectreactor.addons:reactor-extra")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
     implementation("io.projectreactor.rabbitmq:reactor-rabbitmq")
     runtimeOnly("io.r2dbc:r2dbc-postgresql")
     liquibaseRuntime("org.postgresql:postgresql")

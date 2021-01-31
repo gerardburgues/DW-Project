@@ -1,15 +1,10 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.reactive.awaitSingle
-import org.springframework.data.r2dbc.core.*
-import org.springframework.data.relational.core.query.Criteria.where
-import org.springframework.data.relational.core.query.Query.query
-import org.springframework.data.relational.core.query.isEqual
+import org.reactivestreams.Publisher
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
+import org.springframework.data.r2dbc.core.insert
+import org.springframework.data.r2dbc.core.select
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.AveragesClient
 import pl.pwr.nbaproject.model.Queue.AVERAGES
@@ -18,6 +13,9 @@ import pl.pwr.nbaproject.model.api.AveragesWrapper
 import pl.pwr.nbaproject.model.db.AVERAGES_TABLE
 import pl.pwr.nbaproject.model.db.Average
 import pl.pwr.nbaproject.model.db.Player
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
+import reactor.kotlin.core.publisher.toFlux
 import reactor.rabbitmq.Receiver
 import reactor.rabbitmq.Sender
 import kotlin.reflect.KClass
@@ -42,66 +40,58 @@ class AverageETLProcessor(
 
     override val messageClass: KClass<SeasonAverageMessage> = SeasonAverageMessage::class
 
-    override suspend fun extract(message: SeasonAverageMessage): AveragesWrapper = with(message) {
-        averagesClient.getAverages(playerIds, season)
-    }
-
-    override suspend fun transform(data: AveragesWrapper): Pair<List<Average>, Boolean> = data.data.map { average ->
-        with(average) {
-            Average(
-                playerId = playerId,
-                season = season,
-                gamesPlayed = gamesPlayed,
-                minutes = minutes,
-                points = points,
-                assists = assists,
-                rebounds = rebounds,
-                defensiveRebounds = defensiveRebounds,
-                offensiveRebounds = offensiveRebounds,
-                blocks = blocks,
-                steals = steals,
-                turnovers = turnovers,
-                personalFouls = personalFouls,
-                fieldGoalsAttempted = fieldGoalsAttempted,
-                fieldGoalsMade = fieldGoalsMade,
-                fieldGoalPercentage = fieldGoalPercentage,
-                threePointersAttempted = threePointersAttempted,
-                threePointersMade = threePointersMade,
-                threePointerPercentage = threePointerPercentage,
-                freeThrowsAttempted = freeThrowsAttempted,
-                freeThrowsMade = freeThrowsMade,
-                freeThrowPercentage = freeThrowPercentage
-            )
+    override fun extract(message: Mono<SeasonAverageMessage>): Mono<AveragesWrapper> = message.flatMap {
+        with(it) {
+            averagesClient.getAverages(playerIds, season)
         }
-    } to false
-
-    override suspend fun load(data: Pair<List<Average>, Boolean>): Boolean {
-        data.first
-            .filterNot { average ->
-                r2dbcEntityTemplate.select<Average>()
-                    .matching(
-                        query(
-                            where("player_id").isEqual(average.playerId)
-                                .and(where("season").isEqual(average.season))
-                        )
-                    )
-                    .exists()
-                    .awaitSingle()
-            }.map { average ->
-                r2dbcEntityTemplate.insert<Average>().usingAndAwait(average)
-            }
-
-        return data.second
     }
 
-    override suspend fun prepareInitialMessages(): Flow<SeasonAverageMessage> {
+    override fun transform(data: Mono<AveragesWrapper>): Mono<Pair<List<Average>, Boolean>> = data.map {
+        val averages = it.data
+        averages.map { average ->
+            with(average) {
+                Average(
+                    playerId = playerId,
+                    season = season,
+                    gamesPlayed = gamesPlayed,
+                    minutes = minutes,
+                    points = points,
+                    assists = assists,
+                    rebounds = rebounds,
+                    defensiveRebounds = defensiveRebounds,
+                    offensiveRebounds = offensiveRebounds,
+                    blocks = blocks,
+                    steals = steals,
+                    turnovers = turnovers,
+                    personalFouls = personalFouls,
+                    fieldGoalsAttempted = fieldGoalsAttempted,
+                    fieldGoalsMade = fieldGoalsMade,
+                    fieldGoalPercentage = fieldGoalPercentage,
+                    threePointersAttempted = threePointersAttempted,
+                    threePointersMade = threePointersMade,
+                    threePointerPercentage = threePointerPercentage,
+                    freeThrowsAttempted = freeThrowsAttempted,
+                    freeThrowsMade = freeThrowsMade,
+                    freeThrowPercentage = freeThrowPercentage
+                )
+            }
+        } to false
+    }
+
+    override fun load(data: Mono<Pair<List<Average>, Boolean>>): Mono<Boolean> = data.flatMap { pair ->
+        Flux.fromIterable(pair.first)
+            .flatMap { average ->
+                r2dbcEntityTemplate.insert<Average>().using(average)
+            }
+            .then(Mono.just(pair.second))
+    }
+
+    override fun prepareInitialMessages(): Publisher<SeasonAverageMessage> {
         return r2dbcEntityTemplate.select<Player>()
-            .flow()
+            .all()
             .map { it.id }
-            .toList()
-            .chunked(100)
-            .flatMap { players -> (2015..2021).map { season -> SeasonAverageMessage(players, season) } }
-            .asFlow()
+            .buffer(100)
+            .flatMap { players -> (2015..2021).toFlux().map { season -> SeasonAverageMessage(players, season) } }
     }
 
 }

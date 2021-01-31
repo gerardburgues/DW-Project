@@ -1,18 +1,8 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.reactive.awaitSingle
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.data.r2dbc.core.insert
-import org.springframework.data.r2dbc.core.select
-import org.springframework.data.r2dbc.core.usingAndAwait
-import org.springframework.data.relational.core.query.Criteria.where
-import org.springframework.data.relational.core.query.Query.query
-import org.springframework.data.relational.core.query.isEqual
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.GamesClient
 import pl.pwr.nbaproject.model.Queue.GAMES
@@ -20,6 +10,9 @@ import pl.pwr.nbaproject.model.amqp.GameMessage
 import pl.pwr.nbaproject.model.api.GamesWrapper
 import pl.pwr.nbaproject.model.db.GAMES_TABLE
 import pl.pwr.nbaproject.model.db.Game
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
+import reactor.kotlin.core.publisher.toFlux
 import reactor.rabbitmq.Receiver
 import reactor.rabbitmq.Sender
 import kotlin.reflect.KClass
@@ -44,53 +37,53 @@ class GameETLProcessor(
 
     override val messageClass: KClass<GameMessage> = GameMessage::class
 
-    override suspend fun extract(message: GameMessage): GamesWrapper = with(message) {
-        gamesClient.getGames(seasons, teamIds, postSeason, page, perPage)
-    }
-
-    override suspend fun transform(data: GamesWrapper): Pair<List<Game>, Boolean> {
-        if (data.meta.currentPage == 1) {
-            for (i in 1 until data.meta.totalPages) {
-                sendMessages(flowOf(GameMessage(page = i + 1)))
-            }
+    override fun extract(message: Mono<GameMessage>): Mono<GamesWrapper> = message.flatMap {
+        with(it) {
+            gamesClient.getGames(seasons, teamIds, postSeason, page, perPage)
         }
-
-        return data.data.map { game ->
-            with(game) {
-                Game(
-                    id = id,
-                    date = date,
-                    homeTeamScore = homeTeamScore,
-                    visitorTeamScore = visitorTeamScore,
-                    season = season,
-                    period = period,
-                    status = status,
-                    time = time,
-                    postseason = postseason,
-                    homeTeamId = homeTeam.id,
-                    visitorTeamId = visitorTeam.id,
-                    winnerTeamId = if (homeTeamScore > visitorTeamScore) homeTeam.id else visitorTeam.id
-                )
-            }
-        } to (data.meta.currentPage == data.meta.totalPages)
     }
 
-    override suspend fun load(data: Pair<List<Game>, Boolean>): Boolean {
-        data.first
-            .filterNot { game ->
-                r2dbcEntityTemplate.select<Game>()
-                    .matching(query(where("id").isEqual(game.id)))
-                    .exists()
-                    .awaitSingle()
+    override fun transform(data: Mono<GamesWrapper>): Mono<Pair<List<Game>, Boolean>> {
+        return data.doOnNext { gameWrapper ->
+            if (gameWrapper.meta.currentPage == 1) {
+                Flux.fromIterable(1 until gameWrapper.meta.totalPages)
+                    .flatMap { page -> sendMessages(Mono.fromCallable { GameMessage(page = page + 1) }) }
+                    .subscribe()
             }
-            .map { game ->
-                r2dbcEntityTemplate.insert<Game>().usingAndAwait(game)
+        }.map { gameWrapper ->
+            val isLastPage = gameWrapper.meta.currentPage == gameWrapper.meta.totalPages
+            val games = gameWrapper.data.map { game ->
+                with(game) {
+                    Game(
+                        id = id,
+                        date = date,
+                        homeTeamScore = homeTeamScore,
+                        visitorTeamScore = visitorTeamScore,
+                        season = season,
+                        period = period,
+                        status = status,
+                        time = time,
+                        postseason = postseason,
+                        homeTeamId = homeTeam.id,
+                        visitorTeamId = visitorTeam.id,
+                        winnerTeamId = if (homeTeamScore > visitorTeamScore) homeTeam.id else visitorTeam.id
+                    )
+                }
             }
 
-        return data.second
+            games to isLastPage
+        }
     }
 
-    override suspend fun prepareInitialMessages(): Flow<GameMessage> = (2015..2021).asFlow()
+    override fun load(data: Mono<Pair<List<Game>, Boolean>>): Mono<Boolean> = data.flatMap { pair ->
+        Flux.fromIterable(pair.first)
+            .flatMap { game ->
+                r2dbcEntityTemplate.insert<Game>().using(game)
+            }
+            .then(Mono.just(pair.second))
+    }
+
+    override fun prepareInitialMessages(): Flux<GameMessage> = (2015..2021).toFlux()
         .map { season ->
             GameMessage(seasons = listOf(season))
         }
