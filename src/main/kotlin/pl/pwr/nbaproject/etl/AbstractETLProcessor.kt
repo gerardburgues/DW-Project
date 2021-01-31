@@ -1,50 +1,43 @@
 package pl.pwr.nbaproject.etl
 
-import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.reactive.awaitSingleOrNull
 import kotlinx.coroutines.reactor.mono
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.apache.logging.log4j.kotlin.Logging
-import org.springframework.beans.factory.InitializingBean
 import org.springframework.data.r2dbc.core.*
 import org.springframework.data.relational.core.query.Criteria.where
 import org.springframework.data.relational.core.query.Query.query
 import org.springframework.data.relational.core.query.isEqual
 import pl.pwr.nbaproject.model.Queue
 import pl.pwr.nbaproject.model.db.ETLStatus
+import reactor.core.publisher.Flux
 import reactor.kotlin.core.publisher.toMono
+import reactor.kotlin.extra.retry.retryExponentialBackoff
 import reactor.rabbitmq.*
 import kotlin.reflect.KClass
-import kotlin.time.ExperimentalTime
-import kotlin.time.milliseconds
-import kotlin.time.seconds
-import kotlin.time.toJavaDuration
+import kotlin.time.*
 
 abstract class AbstractETLProcessor<T1 : Any, T2 : Any, T3 : Any>(
     private val rabbitReceiver: Receiver,
     private val rabbitSender: Sender,
     private val objectMapper: ObjectMapper,
     protected val r2dbcEntityTemplate: R2dbcEntityTemplate,
-) : Logging, InitializingBean {
-
-    /**
-     * Calls init() method after creation of the object by Spring Dependency Injection Container
-     */
-    override fun afterPropertiesSet() {
-        runBlocking {
-            init()
-        }
-    }
+) : Logging {
 
     /**
      * Base method used for performing ETL process. Should be called by subclasses in bean initialization method.
      * Overloaded version using abstract methods.
      */
-    open suspend fun init() {
-        this.init(queue, ::toMessage, ::extract, ::transform, ::load)
+    open fun process(): Flux<Unit> {
+        return this.process(queue, ::toMessage, ::extract, ::transform, ::load)
     }
 
     /**
@@ -57,44 +50,54 @@ abstract class AbstractETLProcessor<T1 : Any, T2 : Any, T3 : Any>(
      * @param load function for inserting the data into the data warehouse
      */
     @OptIn(FlowPreview::class, ExperimentalTime::class)
-    private suspend fun init(
+    private fun process(
         queue: Queue,
         toMessage: suspend (AcknowledgableDelivery) -> T1?,
         extract: suspend (T1) -> T2,
         transform: suspend (T2) -> Pair<List<T3>, Boolean>,
         load: suspend (Pair<List<T3>, Boolean>) -> Boolean,
-    ) {
-        val etlStatus = getEtlStatus()
-
-        if (etlStatus?.done != true) {
-            feedQueue()
-        }
-
-        val consumeOptions = ConsumeOptions()
-            .qos(60)
-            .exceptionHandler(
-                ExceptionHandlers.RetryAcknowledgmentExceptionHandler(
-                    20.seconds.toJavaDuration(),
-                    500.milliseconds.toJavaDuration(),
-                    ExceptionHandlers.CONNECTION_RECOVERY_PREDICATE
-                )
+    ): Flux<Unit> = mono { getEtlStatus() }
+        .filter { !it.done }
+        .flatMap { mono { sendMessages(prepareInitialMessages()) } }
+        .flatMapMany {
+            rabbitReceiver.consumeManualAck(
+                queue.queueName, ConsumeOptions()
+                    .qos(10)
+                    .exceptionHandler(
+                        ExceptionHandlers.RetryAcknowledgmentExceptionHandler(
+                            20.seconds.toJavaDuration(),
+                            500.milliseconds.toJavaDuration(),
+                            ExceptionHandlers.CONNECTION_RECOVERY_PREDICATE
+                        )
+                    )
             )
-
-        rabbitReceiver.consumeManualAck(queue.queueName, consumeOptions)
-            .flatMap { delivery -> mono { toMessage(delivery) } }
-            .flatMap { message -> mono { extract(message) } }
-            .flatMap { data -> mono { transform(data) } }
-            .flatMap { data -> mono { load(data) } }
-            .flatMap { done ->
-                mono {
-                    if (done) {
-                        saveEtlStatus()
-                    }
+                .flatMap { delivery ->
+                    mono { toMessage(delivery) }
+                        .flatMap { message ->
+                            mono { extract(message) }
+                                .retryExponentialBackoff(
+                                    times = 3,
+                                    first = 10.seconds.toJavaDuration(),
+                                    max = 1.minutes.toJavaDuration(),
+                                    jitter = true
+                                )
+                        }
+                        .flatMap { data -> mono { transform(data) } }
+                        .flatMap { data -> mono { load(data) } }
+                        .flatMap { done ->
+                            mono {
+                                if (done) {
+                                    saveEtlStatus()
+                                }
+                            }
+                        }
+                        .doOnSuccess {
+                            delivery.ack()
+                        }.doOnError {
+                            delivery.nack(true)
+                        }
                 }
-            }
-
-            .subscribe()
-    }
+        }
 
     /**
      * Jackson ObjectMapper.readValue is a blocking API, I think that this should work fine...
@@ -105,24 +108,16 @@ abstract class AbstractETLProcessor<T1 : Any, T2 : Any, T3 : Any>(
                 "Message: ${delivery.body.decodeToString()}"
             }
 
-            val mappedMessage = withContext(IO) {
-                objectMapper.readValue(delivery.body, messageClass.java)
-            }
-
-            delivery.ack()
-            mappedMessage
-        } catch (e: JsonProcessingException) {
-            logger.error(e)
-            delivery.nack(false)
-            null
+        return withContext(IO) {
+            objectMapper.readValue(delivery.body, messageClass.java)
         }
     }
 
-    private suspend fun getEtlStatus(): ETLStatus? {
+    private suspend fun getEtlStatus(): ETLStatus {
         return r2dbcEntityTemplate
             .select<ETLStatus>()
             .matching(query(where("table_name").isEqual(tableName)))
-            .awaitOneOrNull()
+            .awaitOneOrNull() ?: ETLStatus(tableName, false)
     }
 
     private suspend fun saveEtlStatus() {
@@ -131,11 +126,13 @@ abstract class AbstractETLProcessor<T1 : Any, T2 : Any, T3 : Any>(
             .usingAndAwait(ETLStatus(tableName, true))
     }
 
-    protected suspend fun sendMessage(message: T1) {
-        val body = withContext(IO) {
-            objectMapper.writeValueAsBytes(message)
-        }
-        rabbitSender.send(OutboundMessage("", queue.queueName, body).toMono()).subscribe()
+    protected fun sendMessages(messages: Flow<T1>) {
+        messages
+            .map { objectMapper.writeValueAsBytes(it) }
+            .flowOn(IO)
+            .map {
+                rabbitSender.send(OutboundMessage("", queue.queueName, it).toMono()).awaitSingleOrNull()
+            }.launchIn(GlobalScope)
     }
 
     /**
@@ -170,16 +167,12 @@ abstract class AbstractETLProcessor<T1 : Any, T2 : Any, T3 : Any>(
 
     /**
      * Method for inserting the data into the data warehouse.
-     * **Important** Make sure this method **does not** perform any heavy calculations.
      *
-     * @param data[T3] transformed data from the [AbstractETLProcessor.transform] step
-     * @return list of SQL queries
+     * @param [data] transformed data from the [AbstractETLProcessor.transform] step
+     * @return true if last page has been inserted properly, false otherwise
      */
     abstract suspend fun load(data: Pair<List<T3>, Boolean>): Boolean
 
-    open suspend fun feedQueue() {
-        val message = OutboundMessage("", queue.queueName, "{}".encodeToByteArray())
-        rabbitSender.send(message.toMono()).subscribe()
-    }
+    abstract suspend fun prepareInitialMessages(): Flow<T1>
 
 }

@@ -1,6 +1,8 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.reactive.awaitSingle
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.data.r2dbc.core.insert
@@ -49,7 +51,7 @@ class TeamsETLProcessor(
     override suspend fun transform(data: TeamsWrapper): Pair<List<Team>, Boolean> {
         if (data.meta.currentPage == 1) {
             for (i in 1 until data.meta.totalPages) {
-                sendMessage(PageMessage(page = i + 1))
+                sendMessages(flowOf(PageMessage(page = i + 1)))
             }
         }
 
@@ -82,5 +84,7 @@ class TeamsETLProcessor(
 
         return data.second
     }
+
+    override suspend fun prepareInitialMessages(): Flow<PageMessage> = flowOf(PageMessage())
 
 }

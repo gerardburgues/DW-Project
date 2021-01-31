@@ -13,7 +13,6 @@ class AveragesClient(
     suspend fun getAverages(playerIds: List<Long>, season: Int? = null): AveragesWrapper = ballDontLieWebClient.get()
         .uri { uriBuilder ->
             uriBuilder.path("/season_averages")
-                .queryParam("season", season)
 
             playerIds.forEach { playerId ->
                 uriBuilder.queryParam("player_ids[]", playerId)
