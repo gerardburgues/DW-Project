@@ -103,10 +103,9 @@ abstract class AbstractETLProcessor<T1 : Any, T2 : Any, T3 : Any>(
      * Jackson ObjectMapper.readValue is a blocking API, I think that this should work fine...
      */
     private suspend fun toMessage(delivery: AcknowledgableDelivery): T1? {
-        return try {
-            logger.debug {
-                "Message: ${delivery.body.decodeToString()}"
-            }
+        logger.debug {
+            "Message: ${delivery.body.decodeToString()}"
+        }
 
         return withContext(IO) {
             objectMapper.readValue(delivery.body, messageClass.java)
