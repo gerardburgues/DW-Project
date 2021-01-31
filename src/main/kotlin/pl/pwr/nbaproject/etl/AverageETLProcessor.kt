@@ -1,11 +1,12 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactive.awaitSingle
-import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
-import org.springframework.data.r2dbc.core.insert
-import org.springframework.data.r2dbc.core.select
-import org.springframework.data.r2dbc.core.usingAndAwait
+import org.springframework.data.r2dbc.core.*
 import org.springframework.data.relational.core.query.Criteria.where
 import org.springframework.data.relational.core.query.Query.query
 import org.springframework.data.relational.core.query.isEqual
@@ -16,6 +17,7 @@ import pl.pwr.nbaproject.model.amqp.SeasonAverageMessage
 import pl.pwr.nbaproject.model.api.AveragesWrapper
 import pl.pwr.nbaproject.model.db.AVERAGES_TABLE
 import pl.pwr.nbaproject.model.db.Average
+import pl.pwr.nbaproject.model.db.Player
 import reactor.rabbitmq.Receiver
 import reactor.rabbitmq.Sender
 import kotlin.reflect.KClass
@@ -92,8 +94,14 @@ class AverageETLProcessor(
         return data.second
     }
 
-    override suspend fun feedQueue() {
-        //TODO
+    override suspend fun prepareInitialMessages(): Flow<SeasonAverageMessage> {
+        return r2dbcEntityTemplate.select<Player>()
+            .flow()
+            .map { it.id }
+            .toList()
+            .chunked(100)
+            .flatMap { players -> (2015..2021).map { season -> SeasonAverageMessage(players, season) } }
+            .asFlow()
     }
 
 }

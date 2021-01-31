@@ -1,6 +1,10 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.reactive.awaitSingle
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.data.r2dbc.core.insert
@@ -47,7 +51,7 @@ class GameETLProcessor(
     override suspend fun transform(data: GamesWrapper): Pair<List<Game>, Boolean> {
         if (data.meta.currentPage == 1) {
             for (i in 1 until data.meta.totalPages) {
-                sendMessage(GameMessage(page = i + 1))
+                sendMessages(flowOf(GameMessage(page = i + 1)))
             }
         }
 
@@ -86,4 +90,8 @@ class GameETLProcessor(
         return data.second
     }
 
+    override suspend fun prepareInitialMessages(): Flow<GameMessage> = (2015..2021).asFlow()
+        .map { season ->
+            GameMessage(seasons = listOf(season))
+        }
 }
