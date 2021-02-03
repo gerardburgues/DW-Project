@@ -93,7 +93,7 @@ db.changelog-2.sql <- new migration
 etc.
 ```
 
-If you want SQL script to be applied, you need to add appropriate line in db.changelog-master.xml with the name of file
+If you want SQL script to be applied, you need to add appropriate line in db.changelog.xml with the name of file
 
 ```xml
 <databaseChangeLog

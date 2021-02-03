@@ -2,15 +2,16 @@ package pl.pwr.nbaproject.api
 
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
-import org.springframework.web.reactive.function.client.awaitBody
+import org.springframework.web.reactive.function.client.bodyToMono
 import pl.pwr.nbaproject.model.api.PlayersWrapper
+import reactor.core.publisher.Mono
 
 @Service
 class PlayersClient(
-    private val ballDontLieWebClient: WebClient
+    private val ballDontLieWebClient: WebClient,
 ) {
 
-    suspend fun getPlayers(page: Int = 0, perPage: Int = 100): PlayersWrapper = ballDontLieWebClient.get()
+    fun getPlayers(page: Int = 0, perPage: Int = 100): Mono<PlayersWrapper> = ballDontLieWebClient.get()
         .uri { uriBuilder ->
             uriBuilder.path("/players")
                 .queryParam("page", page)
@@ -18,6 +19,6 @@ class PlayersClient(
                 .build()
         }
         .retrieve()
-        .awaitBody()
+        .bodyToMono<PlayersWrapper>()
 
 }

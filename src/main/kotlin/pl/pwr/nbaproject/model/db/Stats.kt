@@ -1,13 +1,24 @@
 package pl.pwr.nbaproject.model.db
 
+import org.springframework.data.annotation.Id
 import org.springframework.data.relational.core.mapping.Table
+import java.time.LocalDate
 
-@Table("stats")
+@Table(STATS_TABLE)
 data class Stats(
-    var id: Long,
+    @Id var id: Long,
     var playerId: Long,
     var teamId: Long,
     var gameId: Long,
+    var homeTeamId: Long,
+    var homeTeamScore: Int,
+    var visitorTeamId: Long,
+    var visitorTeamScore: Int,
+    var winnerTeamId: Long,
+    var season: Int,
+    var date: LocalDate,
+    var firstName: String,
+    var lastName: String,
     var minutes: String? = null,
     var points: Int? = null,
     var assists: Int? = null,
