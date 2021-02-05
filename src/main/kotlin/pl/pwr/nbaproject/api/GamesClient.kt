@@ -2,21 +2,22 @@ package pl.pwr.nbaproject.api
 
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
-import org.springframework.web.reactive.function.client.awaitBody
+import org.springframework.web.reactive.function.client.bodyToMono
 import pl.pwr.nbaproject.model.api.GamesWrapper
+import reactor.core.publisher.Mono
 
 @Service
 class GamesClient(
     private val ballDontLieWebClient: WebClient,
 ) {
 
-    suspend fun getGames(
+    fun getGames(
         seasons: List<Int> = emptyList(),
         teamIds: List<Int> = emptyList(),
         postSeason: Boolean? = null,
         page: Int = 0,
         perPage: Int = 100
-    ): GamesWrapper = ballDontLieWebClient.get()
+    ): Mono<GamesWrapper> = ballDontLieWebClient.get()
         .uri { uriBuilder ->
             uriBuilder.path("/games")
 
@@ -37,6 +38,6 @@ class GamesClient(
                 .build()
         }
         .retrieve()
-        .awaitBody()
+        .bodyToMono()
 
 }

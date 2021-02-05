@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.springframework.boot") version "2.4.1"
+    id("org.springframework.boot") version "2.4.2"
     id("io.spring.dependency-management") version "1.0.10.RELEASE"
     kotlin("jvm") version "1.4.21"
     kotlin("plugin.spring") version "1.4.21"
@@ -53,7 +53,6 @@ dependencies {
     implementation("io.projectreactor.addons:reactor-extra")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
     implementation("io.projectreactor.rabbitmq:reactor-rabbitmq")
     runtimeOnly("io.r2dbc:r2dbc-postgresql")
     liquibaseRuntime("org.postgresql:postgresql")

@@ -1,25 +1,23 @@
 package pl.pwr.nbaproject.etl
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.reactive.awaitSingle
+import org.reactivestreams.Publisher
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.data.r2dbc.core.insert
 import org.springframework.data.r2dbc.core.select
-import org.springframework.data.r2dbc.core.usingAndAwait
-import org.springframework.data.relational.core.query.Criteria.where
-import org.springframework.data.relational.core.query.Query.query
+import org.springframework.data.relational.core.query.Criteria
+import org.springframework.data.relational.core.query.Query
 import org.springframework.data.relational.core.query.isEqual
 import org.springframework.stereotype.Service
 import pl.pwr.nbaproject.api.TeamsClient
 import pl.pwr.nbaproject.model.Queue.TEAMS
 import pl.pwr.nbaproject.model.amqp.PageMessage
 import pl.pwr.nbaproject.model.api.TeamsWrapper
-import pl.pwr.nbaproject.model.db.Conference
-import pl.pwr.nbaproject.model.db.Division
-import pl.pwr.nbaproject.model.db.TEAMS_TABLE
-import pl.pwr.nbaproject.model.db.Team
+import pl.pwr.nbaproject.model.db.*
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
+import reactor.kotlin.core.publisher.toMono
+import reactor.kotlin.extra.bool.not
 import reactor.rabbitmq.Receiver
 import reactor.rabbitmq.Sender
 import kotlin.reflect.KClass
@@ -44,47 +42,52 @@ class TeamsETLProcessor(
 
     override val messageClass: KClass<PageMessage> = PageMessage::class
 
-    override suspend fun extract(message: PageMessage): TeamsWrapper = with(message) {
+    override fun extract(message: PageMessage): Mono<TeamsWrapper> = with(message) {
         teamsClient.getTeams(page, perPage)
     }
 
-    override suspend fun transform(data: TeamsWrapper): Pair<List<Team>, Boolean> {
-        if (data.meta.currentPage == 1) {
-            for (i in 1 until data.meta.totalPages) {
-                sendMessages(flowOf(PageMessage(page = i + 1)))
-            }
+    override fun transform(data: TeamsWrapper): Mono<Pair<List<Team>, Boolean>> {
+        val sendMessages = if (data.meta.currentPage == 1) {
+            Flux.fromIterable(1 until data.meta.totalPages)
+                .flatMap { page -> sendMessages(PageMessage(page = page + 1).toMono()) }
+                .then(data.toMono())
+        } else {
+            data.toMono()
         }
 
-        return data.data.map { team ->
-            with(team) {
-                Team(
-                    id = id,
-                    abbreviation = abbreviation,
-                    city = city,
-                    conference = Conference.valueOf(conference.toUpperCase()),
-                    division = Division.valueOf(division.toUpperCase()),
-                    fullName = fullName,
-                    name = name
-                )
+        return sendMessages.map { teamsWrapper ->
+            val isLastPage = teamsWrapper.meta.currentPage == teamsWrapper.meta.totalPages
+            val teams = teamsWrapper.data.map { team ->
+                with(team) {
+                    Team(
+                        id = id,
+                        abbreviation = abbreviation,
+                        city = city,
+                        conference = Conference.valueOf(conference.toUpperCase()),
+                        division = Division.valueOf(division.toUpperCase()),
+                        fullName = fullName,
+                        name = name
+                    )
+                }
             }
-        } to (data.meta.currentPage == data.meta.totalPages)
+
+            teams to isLastPage
+        }
     }
 
-    override suspend fun load(data: Pair<List<Team>, Boolean>): Boolean {
-        data.first
-            .filterNot { team ->
-                r2dbcEntityTemplate.select<Team>()
-                    .matching(query(where("id").isEqual(team.id)))
-                    .exists()
-                    .awaitSingle()
-            }
-            .map { team ->
-                r2dbcEntityTemplate.insert<Team>().usingAndAwait(team)
-            }
+    override fun load(data: Pair<List<Team>, Boolean>): Mono<Boolean> = Flux.fromIterable(data.first)
+        .filterWhen { team ->
+            r2dbcEntityTemplate.select<Game>()
+                .matching(Query.query(Criteria.where("id").isEqual(team.id)))
+                .exists()
+                .not()
+        }
+        .flatMap { team ->
+            r2dbcEntityTemplate.insert<Team>().using(team).onErrorContinue { e, _ -> }
+        }
+        .then(data.second.toMono())
 
-        return data.second
-    }
 
-    override suspend fun prepareInitialMessages(): Flow<PageMessage> = flowOf(PageMessage())
+    override fun prepareInitialMessages(): Publisher<PageMessage> = PageMessage().toMono()
 
 }
