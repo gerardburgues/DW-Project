@@ -1,11 +1,11 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.springframework.boot") version "2.4.1"
+    id("org.springframework.boot") version "2.4.2"
     id("io.spring.dependency-management") version "1.0.10.RELEASE"
     kotlin("jvm") version "1.4.21"
     kotlin("plugin.spring") version "1.4.21"
-    id("org.liquibase.gradle") version "2.0.3"
+    id("org.liquibase.gradle") version "2.0.4"
 }
 
 group = "pl.pwr"
@@ -50,17 +50,13 @@ dependencies {
     implementation("org.apache.logging.log4j:log4j-api-kotlin:1.0.0")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
+    implementation("io.projectreactor.addons:reactor-extra")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
     implementation("io.projectreactor.rabbitmq:reactor-rabbitmq")
     runtimeOnly("io.r2dbc:r2dbc-postgresql")
     liquibaseRuntime("org.postgresql:postgresql")
-    liquibaseRuntime("org.liquibase:liquibase-core:3.8.1")
-    liquibaseRuntime("org.liquibase:liquibase-groovy-dsl:2.1.1")
-    liquibaseRuntime("ch.qos.logback:logback-core")
-    liquibaseRuntime("ch.qos.logback:logback-classic")
-    liquibaseRuntime("javax.xml.bind:jaxb-api")
+    liquibaseRuntime("org.liquibase:liquibase-core:4.2.2")
 
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
