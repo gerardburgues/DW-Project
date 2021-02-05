@@ -196,11 +196,11 @@ CREATE OR REPLACE FUNCTION
     corr_height_player()
     RETURNS TABLE
     (
-        first_name          text,
-        last_name           text,
+        first_name          TEXT,
+        last_name           TEXT,
         height_inches       INTEGER,
         three_pointers_made DOUBLE PRECISION,
-        position            text
+        position            TEXT
     )
 AS
 $$
@@ -226,11 +226,10 @@ CREATE FUNCTION sort_by_division(s_points INTEGER, s_assists INTEGER)
     (
         points     DOUBLE PRECISION,
         assists    DOUBLE PRECISION,
-        first_name text,
-        last_name  text,
-        division   text
+        first_name TEXT,
+        last_name  TEXT,
+        division   TEXT
     )
-    LANGUAGE PLPGSQL
 AS
 $$
 BEGIN
@@ -243,7 +242,7 @@ BEGIN
           AND averages.assists >= (s_assists)
         ORDER BY t.division;
 END;
-$$;
+$$ LANGUAGE PLPGSQL;
 
 -- Show the games and players in which players has at least 10 assists, 10 points and has won a match (player were in winning team)G
 CREATE FUNCTION show_specific_players(s_points INTEGER, s_assits INTEGER)
