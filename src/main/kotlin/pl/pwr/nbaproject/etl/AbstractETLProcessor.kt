@@ -67,7 +67,7 @@ abstract class AbstractETLProcessor<T1 : Any, T2 : Any, T3 : Any>(
                         ExceptionHandlers.CONNECTION_RECOVERY_PREDICATE
                     )
                 )
-        ).buffer(20)
+        )
             .delayElements(1.minutes.toJavaDuration())
             .flatMap { delivery ->
                 toMessage(delivery)
