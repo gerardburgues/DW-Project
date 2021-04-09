@@ -1,6 +1,6 @@
 # DW-Project
 
-## Configuring Greenplum for Kubernetes
+## nfiguring Greenplum for Kubernetes
 
 1. Install Docker for your OS. Follow instructions [here](https://docs.docker.com/get-docker/).
 2. Install Minikube for your OS. Follow instructions [here](https://minikube.sigs.k8s.io/docs/start/).
