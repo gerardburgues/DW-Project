@@ -1,0 +1,18 @@
+GOAL
+
+The goal of this project is to help Basketball Team Manager and coaches to make decisions for their team.  
+We will extract data from an API and use it to create some charts that may be interesting for the user.
+
+WHAT WE USED
+
+- Receive and process data incoming from API
+- Application of ETL Process
+- Storing Data in an OLAP database
+- Analyse Data
+- Visualise Data (Tableau)
+
+
+In this repository will appear a file named DW_Project_Report.pdf, it will appear everything we have used to have success in this project.
+
+
+Take into account that this project has been done by 3 students of Politechnika Wroclawska. Each of this groupmates apport different knowladge and visions.
